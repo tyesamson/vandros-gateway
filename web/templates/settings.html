@@ -1,0 +1,237 @@
+{{define "settings-open"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{.Title}} · Settings · {{.Brand}}</title>
+  {{template "assets" .}}
+</head>
+<body{{if .HasBackground}} class="has-bg"{{end}}>
+  <div class="frame">
+    {{template "header" .}}
+    <main>
+      <h1>Settings</h1>
+      <nav class="subnav" aria-label="Settings">
+        <a href="/settings" {{if or (eq .Section "users") (eq .Section "user")}}aria-current="page"{{end}}>Users</a>
+        <a href="/settings/branding" {{if eq .Section "brand"}}aria-current="page"{{end}}>Branding</a>
+      </nav>
+      {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+      {{if .Error}}<p class="flash error" role="alert">{{.Error}}</p>{{end}}
+{{end}}
+
+{{define "settings-close"}}
+    </main>
+  </div>
+</body>
+</html>
+{{end}}
+
+{{define "settings"}}
+{{template "settings-open" .}}
+      <section class="sheet">
+        <h2>New user</h2>
+        <p class="note">Creates a client. Open the account afterwards to change the role or add another scope.</p>
+        <form class="stack" method="post" action="/settings/users">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label>Username
+            <input name="username" autocomplete="off" required>
+          </label>
+          <label>Password
+            <input name="password" type="password" autocomplete="new-password" required>
+          </label>
+          <label>Confirm password
+            <input name="confirm" type="password" autocomplete="new-password" required>
+          </label>
+          <fieldset>
+            <legend>Scope</legend>
+            <div class="stack">
+              <label>Mount
+                <select name="mount" required>
+                  {{range .MountOptions}}
+                  <option value="{{.ID}}">{{.Name}}</option>
+                  {{end}}
+                </select>
+              </label>
+              <label>Directory <em>empty means the whole mount</em>
+                <input name="path" placeholder="Project_X/Deliverables">
+              </label>
+              <div class="checks">
+                <label class="check"><input type="checkbox" name="read" checked> Read</label>
+                <label class="check"><input type="checkbox" name="write"> Write</label>
+                <label class="check"><input type="checkbox" name="delete"> Delete</label>
+              </div>
+            </div>
+          </fieldset>
+          <button type="submit">Create user</button>
+        </form>
+      </section>
+
+      <section class="sheet roster">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Login method</th>
+              <th>Admin</th>
+              <th>Scopes</th>
+              <th><span class="sr">Edit</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Accounts}}
+            <tr>
+              <td>{{.Username}}</td>
+              <td class="muted">password</td>
+              <td>
+                {{if eq .Role "admin"}}
+                <span class="mark-yes" aria-label="Yes"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+                {{else}}
+                <span class="mark-no" aria-label="No"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></span>
+                {{end}}
+              </td>
+              <td class="scopes-cell">{{.ScopeText}}</td>
+              <td>
+                <a class="icon" href="/settings/users/{{.ID}}" aria-label="Edit {{.Username}}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/></svg></a>
+              </td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </section>
+{{template "settings-close" .}}
+{{end}}
+
+{{define "branding"}}
+{{template "settings-open" .}}
+      <div class="panel">
+      <section class="sheet">
+        <h2>Branding</h2>
+        <p class="note">Replaces the default name, colours, logo, favicon, and background. There is no light/dark toggle — set the colours you want.</p>
+        <form class="branding" method="post" action="/settings/branding" enctype="multipart/form-data">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label>Name
+            <input name="name" value="{{.BrandForm.Name}}" maxlength="80">
+          </label>
+          <div class="color-grid">
+            <label>Background<input type="color" name="bg" value="{{.BrandForm.BG}}"></label>
+            <label>Surface<input type="color" name="surface" value="{{.BrandForm.Surface}}"></label>
+            <label>Text<input type="color" name="ink" value="{{.BrandForm.Ink}}"></label>
+            <label>Muted text<input type="color" name="muted" value="{{.BrandForm.Muted}}"></label>
+            <label>Borders<input type="color" name="line" value="{{.BrandForm.Line}}"></label>
+            <label>Accent<input type="color" name="accent" value="{{.BrandForm.Accent}}"></label>
+            <label>Button text<input type="color" name="button_text" value="{{.BrandForm.ButtonText}}"></label>
+          </div>
+          <label>Logo
+            {{if .LogoURL}}<img class="preview-img" src="{{.LogoURL}}" alt="">{{end}}
+            <input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon">
+            {{if .BrandForm.Logo}}<span class="check"><input type="checkbox" name="remove_logo" value="1"> Remove logo</span>{{end}}
+          </label>
+          <label>Favicon
+            {{if .FaviconURL}}<img class="preview-img small" src="{{.FaviconURL}}" alt="">{{end}}
+            <input name="favicon" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon">
+            {{if .BrandForm.Favicon}}<span class="check"><input type="checkbox" name="remove_favicon" value="1"> Remove favicon</span>{{end}}
+          </label>
+          <label>Background image
+            {{if .BackgroundURL}}<img class="preview-img wide" src="{{.BackgroundURL}}" alt="">{{end}}
+            <input name="background_image" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+            {{if .BrandForm.Background}}<span class="check"><input type="checkbox" name="remove_background" value="1"> Remove background image</span>{{end}}
+          </label>
+          <label>Background image strength
+            <input name="background_opacity" type="number" min="0" max="1" step="any" value="{{.BrandForm.Opacity}}">
+          </label>
+          <button type="submit">Save branding</button>
+        </form>
+        <form method="post" action="/settings/branding/reset">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button class="danger" type="submit">Reset branding</button>
+        </form>
+      </section>
+      </div>
+{{template "settings-close" .}}
+{{end}}
+
+{{define "account"}}
+{{template "settings-open" .}}
+      <div class="panel">
+      <section class="sheet">
+        <h2>{{.Focus.Username}}</h2>
+        <p class="note">{{if eq .Focus.Role "admin"}}Administrator. Every mount is available.{{else}}Client. Access is limited to the scopes below.{{end}}
+          {{if .Focus.Sessions}} {{.Focus.Sessions}} active session{{if gt .Focus.Sessions 1}}s{{end}}.{{end}}</p>
+
+        <form class="row-actions" method="post" action="/settings/users/{{.Focus.ID}}/role">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label>Role
+            <select name="role">
+              <option value="admin" {{if eq .Focus.Role "admin"}}selected{{end}}>Administrator</option>
+              <option value="client" {{if eq .Focus.Role "client"}}selected{{end}}>Client</option>
+            </select>
+          </label>
+          <button type="submit">Update role</button>
+        </form>
+
+        <form class="stack" method="post" action="/settings/users/{{.Focus.ID}}/password">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label>New password
+            <input name="password" type="password" autocomplete="new-password" required>
+          </label>
+          <label>Confirm password
+            <input name="confirm" type="password" autocomplete="new-password" required>
+          </label>
+          <button type="submit">Set password</button>
+        </form>
+
+        {{if .Focus.Scopes}}
+        <ul class="scopes">
+          {{range .Focus.Scopes}}
+          <li>
+            <span>{{.Label}} <em>{{.Perms}}</em></span>
+            <form method="post" action="/settings/scopes/{{.ID}}/delete">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <input type="hidden" name="user" value="{{.User}}">
+              <button class="danger" type="submit">Remove</button>
+            </form>
+          </li>
+          {{end}}
+        </ul>
+        {{end}}
+
+        {{if eq .Focus.Role "client"}}
+        <form class="stack" method="post" action="/settings/users/{{.Focus.ID}}/scopes">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label>Mount
+            <select name="mount" required>
+              {{range $.MountOptions}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+          </label>
+          <label>Directory <em>empty means the whole mount</em>
+            <input name="path" placeholder="Project_X/Deliverables">
+          </label>
+          <div class="checks">
+            <label class="check"><input type="checkbox" name="read" checked> Read</label>
+            <label class="check"><input type="checkbox" name="write"> Write</label>
+            <label class="check"><input type="checkbox" name="delete"> Delete</label>
+          </div>
+          <button type="submit">Add scope</button>
+        </form>
+        {{end}}
+
+        {{if not .Focus.Self}}
+        <div class="row-actions">
+          <form method="post" action="/settings/users/{{.Focus.ID}}/revoke">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <button class="ghost" type="submit">Sign out everywhere</button>
+          </form>
+          <form method="post" action="/settings/users/{{.Focus.ID}}/delete">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <button class="danger" type="submit">Delete user</button>
+          </form>
+        </div>
+        {{end}}
+      </section>
+      </div>
+{{template "settings-close" .}}
+{{end}}

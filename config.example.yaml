@@ -1,0 +1,37 @@
+# Vandros Gateway reads host directories live. It does not index them.
+#
+# Secrets are environment variables, not this file:
+#   VANDROS_SESSION_SECRET    required, at least 32 characters
+#   VANDROS_ADMIN_USER        used only when the database has no users (default: admin)
+#   VANDROS_ADMIN_PASSWORD    used only when the database has no users
+#
+# Copy this file to config.yaml and point each mount at a real directory.
+
+listen: ":8080"
+
+session:
+  ttl: 12h
+  # Set true when the portal is served over HTTPS.
+  secure: false
+
+database:
+  path: /var/lib/vandros/portal.db
+
+branding:
+  name: Vandros Gateway
+  # Optional logo file. PNG, JPEG, WEBP, or SVG. Not cropped.
+  logo: ""
+
+mounts:
+  - id: promise
+    name: Promise
+    path: /mnt/promise
+  - id: fileserv
+    name: Fileserv
+    path: /mnt/fileserv
+  - id: downloads
+    name: Downloads
+    path: /mnt/downloads
+  - id: plex
+    name: Plex
+    path: /mnt/plex

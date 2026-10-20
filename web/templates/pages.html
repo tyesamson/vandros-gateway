@@ -1,0 +1,118 @@
+{{define "assets"}}
+<link rel="stylesheet" href="/static/app.css">
+<style>:root { {{.Theme}} }</style>
+{{if .FaviconURL}}<link rel="icon" href="{{.FaviconURL}}">{{else}}<link rel="icon" href="/favicon.svg" type="image/svg+xml">{{end}}
+{{end}}
+
+{{define "header"}}
+<header class="top">
+  <a class="mark" href="/">
+    {{if .LogoURL}}<img src="{{.LogoURL}}" alt="">{{end}}
+    <span>{{.Brand}}</span>
+  </a>
+  <nav>
+    {{if .IsAdmin}}<a href="/settings">Settings</a>{{end}}
+    <span class="who">{{.Username}}</span>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="text" type="submit">Log out</button>
+    </form>
+  </nav>
+</header>
+{{if .Crumbs}}
+<nav class="crumbs" aria-label="Path">
+  {{range $i, $c := .Crumbs}}
+    {{if $i}}<span class="sep">/</span>{{end}}
+    <a href="{{$c.Href}}">{{$c.Name}}</a>
+  {{end}}
+</nav>
+{{end}}
+{{end}}
+
+{{define "mounts"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{.Brand}}</title>
+  {{template "assets" .}}
+</head>
+<body{{if .HasBackground}} class="has-bg"{{end}}>
+  <div class="frame">
+    {{template "header" .}}
+    <main>
+      <header class="ledger">
+        <h1>Directories</h1>
+        {{if .Mounts}}<span class="count">{{len .Mounts}}</span>{{end}}
+      </header>
+      {{if .Mounts}}
+      <ul class="link-list">
+        {{range .Mounts}}
+        <li><a class="hop" href="{{.Href}}"><span class="branded">{{.Name}}</span>{{if .Detail}}<span class="dest">{{.Detail}}</span>{{end}}</a></li>
+        {{end}}
+      </ul>
+      {{else}}
+      <p class="empty">No directories are assigned to this account.</p>
+      {{end}}
+    </main>
+  </div>
+</body>
+</html>
+{{end}}
+
+{{define "browse"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{.Title}} · {{.Brand}}</title>
+  {{template "assets" .}}
+</head>
+<body{{if .HasBackground}} class="has-bg"{{end}}>
+  <div class="frame">
+    {{template "header" .}}
+    <main>
+      <header class="ledger">
+        <h1>{{.Title}}</h1>
+        {{if .Rows}}<span class="count">{{len .Rows}}</span>{{end}}
+      </header>
+      {{if .Error}}<p class="flash error" role="alert">{{.Error}}</p>{{end}}
+      {{if .HasFiles}}
+      <div class="toolbar">
+        <label class="check"><input type="checkbox" data-select-all> Select all</label>
+        <form id="download-selected" method="post" action="{{.ZipURL}}">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button type="submit">Download selected</button>
+        </form>
+        <form method="post" action="{{.ZipURL}}">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="all" value="1">
+          <button class="ghost" type="submit">Download all</button>
+        </form>
+      </div>
+      {{end}}
+      {{if .Rows}}
+      <ul class="link-list">
+        {{range .Rows}}
+        <li class="hop file">
+          {{if .Download}}<label class="check pick"><input type="checkbox" name="file" value="{{.Name}}" form="download-selected"></label>{{else}}<span></span>{{end}}
+          {{if .Href}}<a class="branded {{.Class}}" href="{{.Href}}">{{.Name}}</a>{{else}}<span class="branded">{{.Name}}</span>{{end}}
+          <span class="meta">{{.Size}}</span>
+          <span class="when">{{.Modified}}</span>
+          {{if .Download}}<a class="icon" href="{{.Download}}" aria-label="Download"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg></a>{{else}}<span></span>{{end}}
+        </li>
+        {{end}}
+      </ul>
+      {{else}}
+      <p class="empty">This folder is empty.</p>
+      {{end}}
+      {{if .HasFiles}}<script src="/static/select.js"></script>{{end}}
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,33 @@
+---
+description: Use the Finishing Suite visual template for Docker-hosted web apps such as Vanity Hop and Vandros Gateway. Keep the same colours, type, layout, and branding controls.
+alwaysApply: false
+---
+
+# Finishing Suite UI
+
+Docker-hosted web apps in this family share one visual template. Vanity Hop (`io.thefinish.ing`) is the reference. Do not invent a new palette, a light theme, or a different control style.
+
+Start from these tokens. Branding settings may override them at runtime; the defaults stay these values.
+
+```css
+:root {
+  --bg: #0b0c0e;
+  --surface: #141518;
+  --ink: #e6e6dc;
+  --muted: #aaaaa4;
+  --line: #2a2b32;
+  --accent: #a62525;
+  --button-text: #e6e6dc;
+  --error: #ff8b7b;
+  --ok: #8ee0b1;
+  --ui: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+}
+```
+
+- Page column: `min(960px, calc(100% - 32px))`, centred.
+- Forms and settings panels: surface sheet, 1px `--line` border, 14px radius, about 36–40rem wide.
+- Lists: separate rounded rows (12px radius, 8px gap), not a full-width underline list. Hover uses `--accent`.
+- Primary buttons: `--accent` background, `--button-text`. Text links and secondary actions stay `--muted` until hover.
+- Header: brand on the left. On the right: navigation, then the signed-in name, then logout separated by a divider.
+- Settings: subpages. Users first, branding second.
+- Branding form, when the app has one: name, background, surface, text, muted text, borders, accent, button text, logo, favicon, background image, background strength (default 0.28), Save branding, and Reset branding. No light/dark toggle.

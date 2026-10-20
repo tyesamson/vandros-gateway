@@ -1,0 +1,33 @@
+{{define "login"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Sign in · {{.Brand}}</title>
+  {{template "assets" .}}
+</head>
+<body{{if .HasBackground}} class="has-bg"{{end}}>
+  <div class="frame">
+    <main class="signin">
+      <section class="sheet">
+        {{if .LogoURL}}<img class="hero-logo" src="{{.LogoURL}}" alt="">{{end}}
+        <h1>{{.Brand}}</h1>
+        <p class="lede">Sign in</p>
+        {{if .Error}}<p class="flash error" role="alert">{{.Error}}</p>{{end}}
+        <form class="stack" method="post" action="/login">
+          <label>Username
+            <input name="username" autocomplete="username" required autofocus>
+          </label>
+          <label>Password
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button type="submit">Sign in</button>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

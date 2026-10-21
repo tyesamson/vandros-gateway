@@ -93,7 +93,7 @@ func Parse(b []byte) (Config, error) {
 func (raw file) config() (Config, error) {
 	listen := raw.Listen
 	if listen == "" {
-		listen = ":8080"
+		listen = ":24731"
 	}
 	if _, _, err := net.SplitHostPort(listen); err != nil {
 		return Config{}, fmt.Errorf("listen: %w", err)

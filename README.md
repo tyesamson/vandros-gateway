@@ -10,12 +10,12 @@ The first start creates the admin account from `VANDROS_ADMIN_USER` and `VANDROS
 
 Image: `ghcr.io/tyesamson/vandros-gateway:latest`
 
-Publishes port 8080 on the host so Nginx Proxy Manager can reach it by the machine’s IP. No shared Docker network is required. The data directory can be empty; the container creates the database on first start. It has to be writable by uid 10001. Each library is mounted read-only, at the same path written in the config.
+Publishes port 24731 on the host so Nginx Proxy Manager can reach it by the machine’s IP. No shared Docker network is required. The data directory can be empty; the container creates the database on first start. It has to be writable by uid 10001. Each library is mounted read-only, at the same path written in the config.
 
 Write `/mnt/docker/vandros-gateway/config.yaml`:
 
 ```yaml
-listen: ":8080"
+listen: ":24731"
 
 session:
   ttl: 12h
@@ -50,7 +50,7 @@ docker run --restart=unless-stopped -d \
   --name vandros \
   --read-only --tmpfs /tmp --stop-timeout 15 \
   --user 10001:10001 \
-  -p 8080:8080 \
+  -p 24731:24731 \
   -v /etc/localtime:/etc/localtime:ro \
   -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
   -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
@@ -84,12 +84,12 @@ This app should sit behind NPM. It does not terminate TLS itself.
    - Domain: the portal host
    - Scheme: `http`
    - Forward hostname / IP: this machine’s IP (on the same Docker host, `172.17.0.1` usually works)
-   - Forward port: `8080`
+   - Forward port: `24731`
    - Forward Hostname: on
    - SSL: request a certificate, enable **Force SSL**
 3. Set `session.secure: true` in `config.yaml` and restart the container. That marks the cookies Secure, uses the `__Host-` prefix, and sends HSTS.
 
-Leave port 8080 off any WAN / router forward; NPM already has 80 and 443. The login limiter counts the address it sees. Behind NPM that address is the proxy, so failures share one limit: 20 per 10 minutes, and 10 per username.
+Leave port 24731 off any WAN / router forward; NPM already has 80 and 443. The login limiter counts the address it sees. Behind NPM that address is the proxy, so failures share one limit: 20 per 10 minutes, and 10 per username.
 
 Changing a password or a role signs that user out.
 
@@ -118,4 +118,4 @@ export VANDROS_ADMIN_PASSWORD='choose one'
 go run . -config config.yaml
 ```
 
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Copy `config.example.yaml` to `config.yaml` and point `database.path` and each mount at directories that exist on this machine.
+Open [http://127.0.0.1:24731](http://127.0.0.1:24731). Copy `config.example.yaml` to `config.yaml` and point `database.path` and each mount at directories that exist on this machine.

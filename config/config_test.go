@@ -26,7 +26,7 @@ func TestParseMounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Listen != ":8080" || cfg.SessionTTL != 12*time.Hour || cfg.BrandName != "The Finish" {
+	if cfg.Listen != ":24731" || cfg.SessionTTL != 12*time.Hour || cfg.BrandName != "The Finish" {
 		t.Fatalf("defaults not applied: %+v", cfg)
 	}
 	if len(cfg.Mounts) != 2 || cfg.Mounts[0].ID != "promise" {
@@ -36,10 +36,10 @@ func TestParseMounts(t *testing.T) {
 	if _, err := Parse([]byte(yamlMounts(db, a, nested))); err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("nested mounts error = %v", err)
 	}
-	if _, err := Parse([]byte("listen: \":8080\"\ndatabase:\n  path: " + db + "\nmounts: []\n")); err == nil {
+	if _, err := Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + db + "\nmounts: []\n")); err == nil {
 		t.Fatal("empty mounts accepted")
 	}
-	if _, err := Parse([]byte("listen: \":8080\"\nnope: true\n")); err == nil {
+	if _, err := Parse([]byte("listen: \":24731\"\nnope: true\n")); err == nil {
 		t.Fatal("unknown field accepted")
 	}
 }

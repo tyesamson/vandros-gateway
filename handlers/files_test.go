@@ -38,7 +38,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := config.Parse([]byte("listen: \":8080\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: promise\n    name: Promise\n    path: " + root + "\n"))
+	cfg, err := config.Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: promise\n    name: Promise\n    path: " + root + "\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

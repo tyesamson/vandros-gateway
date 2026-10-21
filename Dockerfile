@@ -11,15 +11,15 @@
 #     -v /etc/localtime:/etc/localtime:ro \
 #     -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
 #     -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
-#     -v /mnt/example:/mnt/example:ro \
+#     -v /mnt/example:/mnt/example \
 #     -e TZ="Pacific/Auckland" \
 #     -e VANDROS_SESSION_SECRET -e VANDROS_ADMIN_USER -e VANDROS_ADMIN_PASSWORD \
 #     ghcr.io/tyesamson/vandros-gateway:latest
 #
 # Add one -v for each host mount listed in config.yaml. The path inside the
-# container is the path in the config. uid 10001 must already be able to read
-# those directories. Vandros Gateway leaves their ownership alone. The data
-# directory has to be writable by uid 10001.
+# container is the path in the config. The example is writable so upload and
+# delete follow Settings. uid 10001 must be able to write there. Add :ro when
+# that library must not change. The data directory has to be writable by uid 10001.
 
 FROM golang:1.27.2-alpine3.24 AS build
 

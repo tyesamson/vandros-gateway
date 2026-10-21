@@ -30,6 +30,7 @@ import (
 var (
 	ErrNotFile = fmt.Errorf("not a file")
 	ErrNotDir  = fmt.Errorf("not a directory")
+	ErrExists  = fmt.Errorf("file already exists")
 )
 
 // Entry is one live directory record. Symlink targets are not exposed.
@@ -151,6 +152,57 @@ func (m Mount) OpenFile(rel string) (*os.File, fs.FileInfo, error) {
 		return nil, info, ErrNotFile
 	}
 	return f, info, nil
+}
+
+// CreateExclusive creates a regular file at dir/name and returns it for writing.
+// name must be a single path segment. An existing file, directory, or symlink
+// is left untouched.
+func (m Mount) CreateExclusive(dir, name string) (*os.File, error) {
+	if m.m == nil || m.m.root == nil {
+		return nil, os.ErrNotExist
+	}
+	if !oneSegment(name) {
+		return nil, relpath.ErrEscape
+	}
+	parent, err := cleanRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	info, err := m.m.root.Lstat(parent)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return nil, ErrNotDir
+	}
+	f, err := m.m.root.OpenFile(rootName(joinRel(dir, name)), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil, ErrExists
+		}
+		return nil, err
+	}
+	return f, nil
+}
+
+// RemoveFile removes a regular file. Directories, symlinks, and other nodes
+// are left in place.
+func (m Mount) RemoveFile(rel string) error {
+	if m.m == nil || m.m.root == nil {
+		return os.ErrNotExist
+	}
+	name, err := cleanRoot(rel)
+	if err != nil {
+		return err
+	}
+	info, err := m.m.root.Lstat(name)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return ErrNotFile
+	}
+	return m.m.root.Remove(name)
 }
 
 // List reads the directory at rel. The result is not cached.
@@ -321,6 +373,10 @@ func rootName(rel string) string {
 		return "."
 	}
 	return rel
+}
+
+func oneSegment(name string) bool {
+	return name != "" && name != "." && name != ".." && len(name) <= 255 && !strings.ContainsAny(name, "/\\\x00") && path.Base(name) == name
 }
 
 func joinRel(dir, name string) string {

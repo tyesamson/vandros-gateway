@@ -331,7 +331,7 @@ input:focus, select:focus, button:focus-visible, a:focus-visible {
   color: var(--button-text);
 }
 
-button[type="submit"]:not(.danger):not(.text):not(.ghost) {
+button[type="submit"]:not(.danger):not(.text):not(.ghost):not(.icon) {
   background: var(--accent);
   color: var(--button-text);
   border: 0;
@@ -342,7 +342,7 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost) {
   cursor: pointer;
 }
 
-button[type="submit"]:not(.danger):not(.text):not(.ghost):hover {
+button[type="submit"]:not(.danger):not(.text):not(.ghost):not(.icon):hover {
   background: color-mix(in srgb, var(--accent) 82%, black);
 }
 
@@ -409,10 +409,19 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost):hover {
 .scopes em { color: var(--muted); font-style: normal; }
 
 .flash {
+  position: fixed;
+  z-index: 35;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(960px, calc(100% - 32px));
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px;
-  margin: 0 auto 16px;
-  max-width: 40rem;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
 }
 
 .roster { padding: 0; overflow: hidden; }
@@ -445,8 +454,17 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost):hover {
   border: 0;
 }
 
-.flash.ok { background: color-mix(in srgb, var(--ok) 18%, var(--bg)); color: var(--ok); }
-.flash.error { background: color-mix(in srgb, var(--error) 16%, var(--bg)); color: var(--error); }
+.flash.ok {
+  background: color-mix(in srgb, var(--ok) 18%, var(--surface));
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
+}
+.flash.ok.is-gone { opacity: 0; }
+.flash.error {
+  background: color-mix(in srgb, var(--error) 16%, var(--surface));
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 40%, var(--line));
+}
 
 .ledger {
   display: flex;
@@ -467,6 +485,26 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost):hover {
 
 .toolbar .check { margin-right: auto; }
 .toolbar form { margin: 0; }
+
+.drop {
+  position: fixed;
+  inset: 16px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  pointer-events: none;
+}
+.drop[hidden] { display: none; }
+.drop p {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
 
 .count {
   color: var(--muted);
@@ -503,8 +541,16 @@ a.hop:hover,
 }
 
 .hop.file {
-  grid-template-columns: auto minmax(0, 1fr) 6.5rem 11rem 2.5rem;
+  grid-template-columns: auto minmax(0, 1fr) 6.5rem 11rem auto;
 }
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.row-actions form { margin: 0; }
 
 .pick { margin: 0; }
 .pick input { accent-color: var(--accent); }
@@ -525,17 +571,21 @@ a.hop:hover,
   text-align: right;
 }
 
-a.icon {
+a.icon, button.icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
   border-radius: 8px;
+  border: 0;
+  padding: 0;
+  background: none;
   color: var(--muted);
+  cursor: pointer;
 }
 
-a.icon:hover {
+a.icon:hover, button.icon:hover {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   text-decoration: none;

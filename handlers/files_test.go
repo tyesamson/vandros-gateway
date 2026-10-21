@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -151,7 +152,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 	}
 	page, _ := io.ReadAll(listResp.Body)
 	listResp.Body.Close()
-	if listResp.StatusCode != http.StatusOK || !strings.Contains(string(page), "my reel.mov") || strings.Contains(string(page), "secret.txt") || strings.Contains(string(page), "via") {
+	if listResp.StatusCode != http.StatusOK || !strings.Contains(string(page), "my reel.mov") || strings.Contains(string(page), "secret.txt") || strings.Contains(string(page), "via") || strings.Contains(string(page), "Upload") || strings.Contains(string(page), "Delete") {
 		t.Fatalf("listing status=%d body=%s", listResp.StatusCode, page)
 	}
 	csrf := csrfFrom(t, listResp, string(page))
@@ -226,6 +227,249 @@ func TestPortalAccessAndRange(t *testing.T) {
 	if missing.StatusCode != http.StatusForbidden {
 		t.Fatalf("login without csrf = %d", missing.StatusCode)
 	}
+}
+
+func TestUploadAndDelete(t *testing.T) {
+	root := t.TempDir()
+	job := filepath.Join(root, "client", "inbox")
+	if err := os.MkdirAll(job, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(job, "folder"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "secret.txt"), []byte("nope"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("notes.txt", filepath.Join(job, "link")); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: library\n    name: Library\n    path: " + root + "\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	portal, err := storage.Open(cfg.Mounts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { portal.Close() })
+	users, err := auth.Open(filepath.Join(t.TempDir(), "portal.db"), "test-session-secret-at-least-32-chars")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { users.Close() })
+	ctx := t.Context()
+	if err := users.EnsureAdmin(ctx, "admin", "correct-horse-battery"); err != nil {
+		t.Fatal(err)
+	}
+	admin, err := users.Authenticate(ctx, "admin", "correct-horse-battery")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminToken, _, err := users.CreateSession(ctx, admin.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := users.CreateUser(ctx, "reader", "correct-horse-battery", auth.RoleClient, []auth.Scope{{
+		MountID: "library", Path: "client/inbox", Read: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer, err := users.CreateUser(ctx, "writer", "correct-horse-battery", auth.RoleClient, []auth.Scope{{
+		MountID: "library", Path: "client/inbox", Read: true, Write: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remover, err := users.CreateUser(ctx, "remover", "correct-horse-battery", auth.RoleClient, []auth.Scope{{
+		MountID: "library", Path: "client/inbox", Read: true, Delete: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readerToken, _, err := users.CreateSession(ctx, reader.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writerToken, _, err := users.CreateSession(ctx, writer.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removerToken, _, err := users.CreateSession(ctx, remover.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app := (&Server{Brand: "The Finish", SessionTTL: time.Hour, Portal: portal, Users: users}).Handler()
+	srv := httptest.NewServer(app)
+	t.Cleanup(srv.Close)
+	httpClient := srv.Client()
+	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	folder := srv.URL + "/b/library/client/inbox"
+	adminCSRF := csrfFor(t, httpClient, folder, adminToken)
+	writerCSRF := csrfFor(t, httpClient, folder, writerToken)
+
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library/client/inbox", readerToken, adminCSRF, "drop.txt", "hello", true); status != http.StatusNotFound {
+		t.Fatalf("reader upload = %d", status)
+	}
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library", writerToken, writerCSRF, "drop.txt", "hello", true); status != http.StatusNotFound {
+		t.Fatalf("writer parent upload = %d", status)
+	}
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library/client/inbox", writerToken, writerCSRF, "../secret.txt", "x", true); status != http.StatusSeeOther {
+		t.Fatalf("bad name status = %d", status)
+	}
+	if _, err := os.Stat(filepath.Join(root, "secret.txt")); err != nil {
+		t.Fatal(err)
+	}
+	secret, err := os.ReadFile(filepath.Join(root, "secret.txt"))
+	if err != nil || string(secret) != "nope" {
+		t.Fatalf("secret changed: %q %v", secret, err)
+	}
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library/client/inbox", writerToken, writerCSRF, "drop.txt", "hello", false); status != http.StatusSeeOther {
+		t.Fatalf("file before csrf = %d", status)
+	}
+	if _, err := os.Stat(filepath.Join(job, "drop.txt")); !os.IsNotExist(err) {
+		t.Fatalf("early file part was stored: %v", err)
+	}
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library/client/inbox", writerToken, writerCSRF, "drop.txt", "hello", true); status != http.StatusSeeOther {
+		t.Fatalf("writer upload = %d", status)
+	}
+	body, err := os.ReadFile(filepath.Join(job, "drop.txt"))
+	if err != nil || string(body) != "hello" {
+		t.Fatalf("uploaded = %q %v", body, err)
+	}
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library/client/inbox", writerToken, writerCSRF, "drop.txt", "again", true); status != http.StatusSeeOther {
+		t.Fatalf("overwrite status = %d", status)
+	}
+	body, err = os.ReadFile(filepath.Join(job, "drop.txt"))
+	if err != nil || string(body) != "hello" {
+		t.Fatalf("overwrite changed file: %q %v", body, err)
+	}
+
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", writerToken, writerCSRF, "drop.txt"); status != http.StatusNotFound {
+		t.Fatalf("writer delete = %d", status)
+	}
+	if _, err := os.Stat(filepath.Join(job, "drop.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, folder, removerToken), "folder"); status != http.StatusSeeOther {
+		t.Fatalf("directory delete = %d", status)
+	}
+	if _, err := os.Stat(filepath.Join(job, "folder")); err != nil {
+		t.Fatalf("directory removed: %v", err)
+	}
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, folder, removerToken), "link"); status != http.StatusNotFound {
+		t.Fatalf("symlink delete = %d", status)
+	}
+	if _, err := os.Lstat(filepath.Join(job, "link")); err != nil {
+		t.Fatalf("symlink removed: %v", err)
+	}
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, folder, removerToken), "drop.txt"); status != http.StatusSeeOther {
+		t.Fatalf("remover delete = %d", status)
+	}
+	if _, err := os.Stat(filepath.Join(job, "drop.txt")); !os.IsNotExist(err) {
+		t.Fatalf("file still present: %v", err)
+	}
+
+	if status := uploadStatus(t, httpClient, srv.URL+"/u/library", adminToken, adminCSRF, "root.txt", "admin", true); status != http.StatusSeeOther {
+		t.Fatalf("admin upload = %d", status)
+	}
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library", adminToken, adminCSRF, "secret.txt"); status != http.StatusSeeOther {
+		t.Fatalf("admin delete = %d", status)
+	}
+	if _, err := os.Stat(filepath.Join(root, "secret.txt")); !os.IsNotExist(err) {
+		t.Fatalf("admin left secret: %v", err)
+	}
+	page, _ := fetchPage(t, httpClient, folder, adminToken)
+	if !strings.Contains(page, "data-upload") || !strings.Contains(page, "Delete") {
+		t.Fatalf("admin controls missing: %s", page)
+	}
+}
+
+func csrfFor(t *testing.T, client *http.Client, rawURL, session string) string {
+	t.Helper()
+	_, token := fetchPage(t, client, rawURL, session)
+	return token
+}
+
+func fetchPage(t *testing.T, client *http.Client, rawURL, session string) (string, string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: session})
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d", rawURL, resp.StatusCode)
+	}
+	return string(body), csrfFrom(t, resp, string(body))
+}
+
+func uploadStatus(t *testing.T, client *http.Client, rawURL, session, csrf, name, contents string, tokenFirst bool) int {
+	t.Helper()
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	if tokenFirst {
+		if err := w.WriteField("csrf", csrf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	part, err := w.CreateFormFile("file", name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write([]byte(contents)); err != nil {
+		t.Fatal(err)
+	}
+	if !tokenFirst {
+		if err := w.WriteField("csrf", csrf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, rawURL, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: session})
+	req.AddCookie(&http.Cookie{Name: csrfCookie, Value: csrf})
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+func deleteStatus(t *testing.T, client *http.Client, rawURL, session, csrf, name string) int {
+	t.Helper()
+	form := url.Values{"csrf": {csrf}, "file": {name}}
+	req, err := http.NewRequest(http.MethodPost, rawURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: session})
+	req.AddCookie(&http.Cookie{Name: csrfCookie, Value: csrf})
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
 }
 
 func postZip(t *testing.T, client *http.Client, rawURL, session, csrf string, form url.Values) []byte {

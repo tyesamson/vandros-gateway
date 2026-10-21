@@ -50,7 +50,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       echo "Mount path does not exist: $path" >&2
       exit 1
     fi
-    mount_args+=(-v "${path}:${path}:ro")
+    # Writable so Settings permissions apply. Add :ro on a library that must not change.
+    mount_args+=(-v "${path}:${path}")
   fi
 done < "$config"
 

@@ -83,6 +83,7 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 			item.Href = downloadURL(mount.ID(), ent.Rel)
 			item.Download = item.Href
 			item.Size = humanSize(ent.Size)
+			item.CanDelete = user.Allows(mount.ID(), ent.Rel, auth.PermDelete)
 			hasFiles = true
 		}
 		rows = append(rows, item)
@@ -93,12 +94,15 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 		title = crumbs[n-1].Name
 	}
 	data := page{
-		Username: user.Username,
-		Title:    title,
-		Crumbs:   crumbs,
-		Rows:     rows,
-		ZipURL:   zipURL(mount.ID(), rel),
-		HasFiles: hasFiles,
+		Username:  user.Username,
+		Title:     title,
+		Crumbs:    crumbs,
+		Rows:      rows,
+		ZipURL:    zipURL(mount.ID(), rel),
+		UploadURL: uploadURL(mount.ID(), rel),
+		DeleteURL: deleteURL(mount.ID(), rel),
+		CanWrite:  user.Allows(mount.ID(), resolved, auth.PermWrite),
+		HasFiles:  hasFiles,
 	}
 	switch r.URL.Query().Get("err") {
 	case "pick":
@@ -107,6 +111,24 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 		data.Error = "This folder has no files to download."
 	case "csrf":
 		data.Error = "The form expired. Try again."
+	case "name":
+		data.Error = "Choose a file with a plain name."
+	case "exists":
+		data.Error = "A file with that name is already here."
+	case "file":
+		data.Error = "Only a normal file can be deleted."
+	case "large":
+		data.Error = "That file is larger than 1 TiB."
+	case "ro":
+		data.Error = "The server cannot change files in this folder."
+	case "upload":
+		data.Error = "The upload did not finish."
+	}
+	switch r.URL.Query().Get("ok") {
+	case "uploaded":
+		data.Notice = "Uploaded."
+	case "deleted":
+		data.Notice = "Deleted."
 	}
 	s.render(w, r, http.StatusOK, "browse", data)
 }
@@ -393,6 +415,8 @@ func folderCrumbs(mount storage.Mount, rel, prefix string) []crumb {
 func browseURL(mount, rel string) string   { return fileURL("b", mount, rel) }
 func downloadURL(mount, rel string) string { return fileURL("d", mount, rel) }
 func zipURL(mount, rel string) string      { return fileURL("z", mount, rel) }
+func uploadURL(mount, rel string) string   { return fileURL("u", mount, rel) }
+func deleteURL(mount, rel string) string   { return fileURL("rm", mount, rel) }
 
 func fileURL(kind, mount, rel string) string {
 	var b strings.Builder

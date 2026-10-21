@@ -75,6 +75,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("HEAD /d/{mount}/{path...}", s.require(s.download))
 	mux.HandleFunc("POST /z/{mount}", s.require(s.downloadZip))
 	mux.HandleFunc("POST /z/{mount}/{path...}", s.require(s.downloadZip))
+	mux.HandleFunc("POST /u/{mount}", s.require(s.upload))
+	mux.HandleFunc("POST /u/{mount}/{path...}", s.require(s.upload))
+	mux.HandleFunc("POST /rm/{mount}", s.require(s.remove))
+	mux.HandleFunc("POST /rm/{mount}/{path...}", s.require(s.remove))
 	return security(mux, s.SecureCookie)
 }
 
@@ -229,6 +233,9 @@ type page struct {
 	Mounts        []mountLink
 	Rows          []row
 	ZipURL        string
+	UploadURL     string
+	DeleteURL     string
+	CanWrite      bool
 	HasFiles      bool
 	Accounts      []accountView
 	MountOptions  []mountOption
@@ -275,12 +282,13 @@ type mountLink struct {
 }
 
 type row struct {
-	Name     string
-	Href     string
-	Download string
-	Size     string
-	Modified string
-	Class    string
+	Name      string
+	Href      string
+	Download  string
+	CanDelete bool
+	Size      string
+	Modified  string
+	Class     string
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, name string, data page) {

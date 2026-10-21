@@ -7,7 +7,7 @@
 #     --name vandros \
 #     --read-only --tmpfs /tmp --stop-timeout 15 \
 #     --user 10001:10001 \
-#     -p 8080:8080 \
+#     -p 24731:24731 \
 #     -v /etc/localtime:/etc/localtime:ro \
 #     -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
 #     -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
@@ -41,11 +41,11 @@ COPY --from=build /out/vandros /usr/local/bin/vandros
 
 USER vandros:vandros
 ENV TZ=UTC
-EXPOSE 8080
+EXPOSE 24731
 VOLUME ["/var/lib/vandros"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-    CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:24731/healthz || exit 1
 
 ENTRYPOINT ["/usr/local/bin/vandros"]
 CMD ["-config", "/etc/vandros/config.yaml"]

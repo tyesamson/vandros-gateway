@@ -6,7 +6,7 @@ set -euo pipefail
 
 image=ghcr.io/tyesamson/vandros-gateway:latest
 config=${1:-${CONFIG:-config.yaml}}
-publish=${VANDROS_PUBLISH:-8080:8080}
+publish=${VANDROS_PUBLISH:-24731:24731}
 
 if [[ ! -f "$config" ]]; then
   echo "Missing $config. Copy config.example.yaml and point each mount at a real directory." >&2

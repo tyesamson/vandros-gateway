@@ -7,7 +7,7 @@
 #
 # Copy this file to config.yaml and point each mount at a real directory.
 
-listen: ":8080"
+listen: ":24731"
 
 session:
   ttl: 12h

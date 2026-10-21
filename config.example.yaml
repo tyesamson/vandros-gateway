@@ -12,6 +12,7 @@ listen: ":8080"
 session:
   ttl: 12h
   # Set true when the portal is served over HTTPS.
+  # That marks the cookies Secure, uses the __Host- prefix, and sends HSTS.
   secure: false
 
 database:
@@ -19,7 +20,7 @@ database:
 
 branding:
   name: Vandros Gateway
-  # Optional logo file. PNG, JPEG, WEBP, or SVG. Not cropped.
+  # Optional logo file. PNG, JPEG, or WEBP. Not cropped.
   logo: ""
 
 mounts:

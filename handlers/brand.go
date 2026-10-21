@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/tyesamson/vandros-gateway/config"
 )
 
 const brandSetting = "branding"
@@ -408,20 +410,7 @@ func (s *Server) storeBrandFile(field string, file multipart.File, _ *multipart.
 }
 
 func sniffImage(data []byte) string {
-	switch {
-	case len(data) >= 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n":
-		return ".png"
-	case len(data) >= 3 && data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff:
-		return ".jpg"
-	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
-		return ".webp"
-	case len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a"):
-		return ".gif"
-	case len(data) >= 4 && (string(data[:4]) == "\x00\x00\x01\x00" || string(data[:4]) == "\x00\x00\x02\x00"):
-		return ".ico"
-	default:
-		return ""
-	}
+	return config.ImageExtension(data)
 }
 
 func (s *Server) clearBrandFiles() {

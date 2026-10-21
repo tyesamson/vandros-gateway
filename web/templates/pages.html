@@ -2,6 +2,7 @@
 <link rel="stylesheet" href="/static/app.css">
 <style>:root { {{.Theme}} }</style>
 {{if .FaviconURL}}<link rel="icon" href="{{.FaviconURL}}">{{else}}<link rel="icon" href="/favicon.svg" type="image/svg+xml">{{end}}
+<script src="/static/menu.js" defer></script>
 {{end}}
 
 {{define "header"}}
@@ -11,8 +12,8 @@
     <span>{{.Brand}}</span>
   </a>
   <nav>
-    {{if .IsAdmin}}<a href="/settings">Settings</a>{{end}}
     <span class="who">{{.Username}}</span>
+    {{if .IsAdmin}}<a href="/settings">Settings</a>{{end}}
     <form method="post" action="/logout">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button class="text" type="submit">Log out</button>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -231,11 +232,35 @@ func checkLogo(path string) error {
 	if info.Size() > maxLogoBytes {
 		return errors.New("logo is larger than 2MiB")
 	}
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".png", ".jpg", ".jpeg", ".webp", ".svg":
+	buf := make([]byte, 12)
+	n, err := f.Read(buf)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	switch ImageExtension(buf[:n]) {
+	case ".png", ".jpg", ".webp":
 		return nil
 	default:
-		return errors.New("logo must be png, jpeg, webp, or svg")
+		return errors.New("logo must be png, jpeg, or webp")
+	}
+}
+
+// ImageExtension reports the type of a PNG, JPEG, WEBP, GIF, or ICO from its
+// magic bytes. Anything else, including SVG, returns an empty string.
+func ImageExtension(data []byte) string {
+	switch {
+	case len(data) >= 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n":
+		return ".png"
+	case len(data) >= 3 && data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff:
+		return ".jpg"
+	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
+		return ".webp"
+	case len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a"):
+		return ".gif"
+	case len(data) >= 4 && (string(data[:4]) == "\x00\x00\x01\x00" || string(data[:4]) == "\x00\x00\x02\x00"):
+		return ".ico"
+	default:
+		return ""
 	}
 }
 

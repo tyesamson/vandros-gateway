@@ -30,16 +30,7 @@ branding:
 mounts:
   - id: library
     name: Library
-    path: /mnt/library
-  - id: other
-    name: Other
-    path: /mnt/other
-  - id: archive
-    name: Downloads
-    path: /mnt/archive
-  - id: media
-    name: Media
-    path: /mnt/media
+    path: /mnt/example
 ```
 
 ```bash
@@ -54,10 +45,7 @@ docker run --restart=unless-stopped -d \
   -v /etc/localtime:/etc/localtime:ro \
   -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
   -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
-  -v /mnt/library:/mnt/library:ro \
-  -v /mnt/other:/mnt/other:ro \
-  -v /mnt/archive:/mnt/archive:ro \
-  -v /mnt/media:/mnt/media:ro \
+  -v /mnt/example:/mnt/example:ro \
   -e TZ="Pacific/Auckland" \
   -e VANDROS_SESSION_SECRET="at least 32 characters" \
   -e VANDROS_ADMIN_USER=admin \

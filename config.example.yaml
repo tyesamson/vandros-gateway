@@ -26,13 +26,4 @@ branding:
 mounts:
   - id: library
     name: Library
-    path: /mnt/library
-  - id: other
-    name: Other
-    path: /mnt/other
-  - id: archive
-    name: Downloads
-    path: /mnt/archive
-  - id: media
-    name: Media
-    path: /mnt/media
+    path: /mnt/example

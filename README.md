@@ -10,7 +10,7 @@ The first start creates the admin account from `VANDROS_ADMIN_USER` and `VANDROS
 
 Image: `ghcr.io/tyesamson/vandros-gateway:latest`
 
-Publishes port 24731 on the host so Nginx Proxy Manager can reach it by the machine’s IP. No shared Docker network is required. The data directory can be empty; the container creates the database on first start. It has to be writable by uid 10001. Each library is mounted read-only, at the same path written in the config.
+Publishes port 24731 on the host so Nginx Proxy Manager can reach it by the machine’s IP. No shared Docker network is required. The data directory can be empty; the container creates the database on first start. It has to be writable by uid 10001. Each library is mounted at the same path written in the config.
 
 Write `/mnt/docker/vandros-gateway/config.yaml`:
 
@@ -45,7 +45,7 @@ docker run --restart=unless-stopped -d \
   -v /etc/localtime:/etc/localtime:ro \
   -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
   -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
-  -v /mnt/example:/mnt/example:ro \
+  -v /mnt/example:/mnt/example \
   -e TZ="Pacific/Auckland" \
   -e VANDROS_SESSION_SECRET="at least 32 characters" \
   -e VANDROS_ADMIN_USER=admin \
@@ -53,7 +53,9 @@ docker run --restart=unless-stopped -d \
   ghcr.io/tyesamson/vandros-gateway:latest
 ```
 
-Add one `-v` for each mount, host path and container path the same. uid 10001 has to be able to read those directories. Vandros Gateway leaves their ownership alone. A mount path that is missing stops the container from starting.
+Add one `-v` for each mount, host path and container path the same. The example is writable, so upload and delete follow the permissions in Settings. uid 10001 has to be able to write to that directory. Add `:ro` to a mount that must not change; the app cannot override a read-only mount, and then uid 10001 only needs to read it. A missing mount path stops the container from starting. Vandros Gateway leaves their ownership alone.
+
+`--read-only` locks the container’s own filesystem. The data volume stays writable for the database. Uploads are written into the library, not into `/tmp`.
 
 Or build locally:
 
@@ -83,7 +85,7 @@ Changing a password or a role signs that user out.
 
 ## Settings
 
-- **Users & Scope** — clients see only the mounts and directories you grant. An empty directory means the whole mount. Admins see every mount.
+- **Users & Scope** — clients see only the mounts and directories you grant. Read is browse and download. Write is upload. Delete removes files. An empty directory means the whole mount. Admins can browse, upload, and delete on every mount.
 - **Branding** — name, logo, favicon, colours, background image
 
 Downloads support HTTP Range. A zip is the current folder only.

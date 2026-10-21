@@ -3,6 +3,7 @@
 <style>:root { {{.Theme}} }</style>
 {{if .FaviconURL}}<link rel="icon" href="{{.FaviconURL}}">{{else}}<link rel="icon" href="/favicon.svg" type="image/svg+xml">{{end}}
 <script src="/static/menu.js" defer></script>
+<script src="/static/flash.js" defer></script>
 {{end}}
 
 {{define "header"}}
@@ -82,6 +83,7 @@
         {{if .Rows}}<span class="count">{{len .Rows}}</span>{{end}}
       </header>
       {{if .Error}}<p class="flash error" role="alert">{{.Error}}</p>{{end}}
+      {{if .Notice}}<p class="flash ok" role="status">{{.Notice}}</p>{{end}}
       {{if .HasFiles}}
       <div class="toolbar">
         <label class="check"><input type="checkbox" data-select-all> Select all</label>
@@ -104,12 +106,21 @@
           {{if .Href}}<a class="branded {{.Class}}" href="{{.Href}}">{{.Name}}</a>{{else}}<span class="branded">{{.Name}}</span>{{end}}
           <span class="meta">{{.Size}}</span>
           <span class="when">{{.Modified}}</span>
-          {{if .Download}}<a class="icon" href="{{.Download}}" aria-label="Download"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg></a>{{else}}<span></span>{{end}}
+          <span class="row-actions">
+            {{if .Download}}<a class="icon" href="{{.Download}}" aria-label="Download"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg></a>{{end}}
+            {{if .CanDelete}}<form method="post" action="{{$.DeleteURL}}" onsubmit="return confirm('Delete this file?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="file" value="{{.Name}}"><button class="icon" type="submit" aria-label="Delete"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M8 7l1 12h6l1-12"/></svg></button></form>{{end}}
+          </span>
         </li>
         {{end}}
       </ul>
       {{else}}
-      <p class="empty">This folder is empty.</p>
+      <p class="empty">{{if .CanWrite}}Drop files here.{{else}}This folder is empty.{{end}}</p>
+      {{end}}
+      {{if .CanWrite}}
+      <div class="drop" hidden data-upload="{{.UploadURL}}" data-csrf="{{.CSRF}}">
+        <p>Drop to upload</p>
+      </div>
+      <script src="/static/upload.js" defer></script>
       {{end}}
       {{if .HasFiles}}<script src="/static/select.js"></script>{{end}}
     </main>

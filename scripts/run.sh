@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# Pull ghcr.io/tyesamson/vandros-gateway:latest and run it read-only.
-#
-#   cp config.example.yaml config.yaml
-#   # point each mount at a real directory
-#   export VANDROS_SESSION_SECRET='at least 32 characters'
-#   export VANDROS_ADMIN_USER=admin          # first start only
-#   export VANDROS_ADMIN_PASSWORD='...'      # first start only
-#   ./scripts/run.sh
-#
-# Mount paths come from config.yaml. Each one is mounted at the same path
-# inside the container, read-only. uid 10001 must already be able to read them.
-# Publish on one address with VANDROS_PUBLISH=192.168.20.112:8080:8080.
+# Optional helper. The README has the docker run to copy.
+# This reads mount paths from config.yaml and runs the same container.
 
 set -euo pipefail
 

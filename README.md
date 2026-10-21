@@ -1,28 +1,121 @@
 # Vandros Gateway
 
-A self-hosted window onto directories on the host. It lists and downloads the files that are already there. It does not index them.
+Self-hosted window onto directories on the host. Sign in, browse, and download what is already there. Files are read live.
 
-The image is built from `main` and published to `ghcr.io/tyesamson/vandros-gateway:latest`. The same push also tags the image with the full commit SHA.
+## First run
 
-## Run
+The first start creates the admin account from `VANDROS_ADMIN_USER` and `VANDROS_ADMIN_PASSWORD`. Open the app and sign in. Later starts ignore those two variables. The password then lives in the database.
 
-Copy `config.example.yaml` to `config.yaml` and point each mount at a real directory. The path in the config is the path inside the container, and uid 10001 has to be able to read it. Vandros Gateway does not change ownership of those directories.
+## Docker
 
-```sh
+Image: `ghcr.io/tyesamson/vandros-gateway:latest`
+
+Publishes port 8080 on the host so Nginx Proxy Manager can reach it by the machine’s IP. No shared Docker network is required. The data directory can be empty; the container creates the database on first start. It has to be writable by uid 10001. Each library is mounted read-only, at the same path written in the config.
+
+Write `/mnt/docker/vandros-gateway/config.yaml`:
+
+```yaml
+listen: ":8080"
+
+session:
+  ttl: 12h
+  secure: false
+
+database:
+  path: /var/lib/vandros/portal.db
+
+branding:
+  name: Vandros Gateway
+
+mounts:
+  - id: promise
+    name: Promise
+    path: /mnt/promise
+  - id: fileserv
+    name: Fileserv
+    path: /mnt/fileserv
+  - id: downloads
+    name: Downloads
+    path: /mnt/downloads
+  - id: plex
+    name: Plex
+    path: /mnt/plex
+```
+
+```bash
+mkdir -p /mnt/docker/vandros-gateway/data
+chown 10001:10001 /mnt/docker/vandros-gateway/data
+
+docker run --restart=unless-stopped -d \
+  --name vandros \
+  --read-only --tmpfs /tmp --stop-timeout 15 \
+  --user 10001:10001 \
+  -p 8080:8080 \
+  -v /etc/localtime:/etc/localtime:ro \
+  -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
+  -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
+  -v /mnt/promise:/mnt/promise:ro \
+  -v /mnt/fileserv:/mnt/fileserv:ro \
+  -v /mnt/downloads:/mnt/downloads:ro \
+  -v /mnt/plex:/mnt/plex:ro \
+  -e TZ="Pacific/Auckland" \
+  -e VANDROS_SESSION_SECRET="at least 32 characters" \
+  -e VANDROS_ADMIN_USER=admin \
+  -e VANDROS_ADMIN_PASSWORD="choose one for the first start" \
+  ghcr.io/tyesamson/vandros-gateway:latest
+```
+
+Add one `-v` for each mount, host path and container path the same. uid 10001 has to be able to read those directories. Vandros Gateway leaves their ownership alone. A mount path that is missing stops the container from starting.
+
+Or build locally:
+
+```bash
+docker build -t vandros-gateway .
+```
+
+Use `vandros-gateway` as the image name in the command above.
+
+## Nginx Proxy Manager
+
+This app should sit behind NPM. It does not terminate TLS itself.
+
+1. DNS for the portal should point at the NPM host (`A` / `AAAA` / `CNAME`).
+2. In NPM, add a **Proxy Host**:
+   - Domain: the portal host
+   - Scheme: `http`
+   - Forward hostname / IP: this machine’s IP (on the same Docker host, `172.17.0.1` usually works)
+   - Forward port: `8080`
+   - Forward Hostname: on
+   - SSL: request a certificate, enable **Force SSL**
+3. Set `session.secure: true` in `config.yaml` and restart the container. That marks the cookies Secure, uses the `__Host-` prefix, and sends HSTS.
+
+Leave port 8080 off any WAN / router forward; NPM already has 80 and 443. The login limiter counts the address it sees. Behind NPM that address is the proxy, so failures share one limit: 20 per 10 minutes, and 10 per username.
+
+Changing a password or a role signs that user out.
+
+## Settings
+
+- **Users & Scope** — clients see only the mounts and directories you grant. An empty directory means the whole mount. Admins see every mount.
+- **Branding** — name, logo, favicon, colours, background image
+
+Downloads support HTTP Range. A zip is the current folder only.
+
+## Environment
+
+| Variable | Purpose |
+| --- | --- |
+| `VANDROS_SESSION_SECRET` | Cookie signing key. Required, at least 32 characters. |
+| `VANDROS_ADMIN_USER` | First admin username when the database has no users (default `admin`) |
+| `VANDROS_ADMIN_PASSWORD` | First admin password when the database has no users. Ignored after that. |
+| `TZ` | Container timezone |
+
+## Run locally
+
+```bash
 export VANDROS_SESSION_SECRET='at least 32 characters'
 export VANDROS_ADMIN_USER=admin
-export VANDROS_ADMIN_PASSWORD='choose one for the first start'
-./scripts/run.sh
+export VANDROS_ADMIN_PASSWORD='choose one'
+go run . -config config.yaml
 ```
 
-`scripts/run.sh` pulls `ghcr.io/tyesamson/vandros-gateway:latest`, mounts each configured directory read-only, and starts a read-only container named `vandros`. The database is the `vandros-data` volume.
-
-`VANDROS_ADMIN_USER` and `VANDROS_ADMIN_PASSWORD` are used only while that volume has no users. Later starts ignore them.
-
-Leave `session.secure` false while the portal is plain HTTP. Set it true when a proxy terminates HTTPS. To publish on one LAN address:
-
-```sh
-VANDROS_PUBLISH=192.168.20.112:8080:8080 ./scripts/run.sh
-```
-
-The environment variables, the mount rules, and the session setting are documented in `config.example.yaml`. The same `docker run` is in the Dockerfile comment.
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Copy `config.example.yaml` to `config.yaml` and point `database.path` and each mount at directories that exist on this machine.

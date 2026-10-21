@@ -1,5 +1,7 @@
 .git
 .github
+.cursor
+.toolchain
 *.db
 *.db-wal
 *.db-shm

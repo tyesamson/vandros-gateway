@@ -1,19 +1,23 @@
-# Build and run:
+# Published image, built from main:
+#   ghcr.io/tyesamson/vandros-gateway:latest
 #
-#   docker build -t vandros-gateway .
-#   docker volume create vandros-data
+# scripts/run.sh pulls that image. It reads mount paths from config.yaml and
+# runs the container read-only. The same command by hand:
+#
 #   docker run -d --name vandros \
 #     --restart unless-stopped --read-only --tmpfs /tmp --stop-timeout 15 \
+#     --pull always \
 #     -p 8080:8080 \
 #     -e TZ -e VANDROS_SESSION_SECRET -e VANDROS_ADMIN_USER -e VANDROS_ADMIN_PASSWORD \
 #     --user 10001:10001 \
 #     -v "$PWD/config.yaml:/etc/vandros/config.yaml:ro" \
 #     -v vandros-data:/var/lib/vandros \
 #     -v /mnt/promise:/mnt/promise:ro \
-#     vandros-gateway
+#     ghcr.io/tyesamson/vandros-gateway:latest
 #
-# Add one -v for each host mount listed in config.yaml. The uid must already
-# be able to read those paths. Vandros Gateway does not chown them.
+# Add one -v for each host mount listed in config.yaml. The path inside the
+# container is the path in the config. uid 10001 must already be able to read
+# those directories. Vandros Gateway does not chown them.
 
 FROM golang:1.27.2-alpine3.24 AS build
 

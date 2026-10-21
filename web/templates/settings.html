@@ -14,7 +14,7 @@
     <main>
       <h1>Settings</h1>
       <nav class="subnav" aria-label="Settings">
-        <a href="/settings" {{if or (eq .Section "users") (eq .Section "user")}}aria-current="page"{{end}}>Users</a>
+        <a href="/settings" {{if or (eq .Section "users") (eq .Section "user")}}aria-current="page"{{end}}>Users & Scope</a>
         <a href="/settings/branding" {{if eq .Section "brand"}}aria-current="page"{{end}}>Branding</a>
       </nav>
       {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}

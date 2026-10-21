@@ -70,36 +70,39 @@ func (s *Store) SetPassword(ctx context.Context, userID int64, password string) 
 
 // SetRole changes an account between admin and client.
 // The last administrator cannot be demoted.
-func (s *Store) SetRole(ctx context.Context, userID int64, role string) error {
+func (s *Store) SetRole(ctx context.Context, userID int64, role string) (bool, error) {
 	if role != RoleAdmin && role != RoleClient {
-		return errors.New("invalid role")
+		return false, errors.New("invalid role")
 	}
 	user, err := s.userByID(ctx, userID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if user.Role == role {
-		return nil
+		return false, nil
 	}
 	if user.Role == RoleAdmin && role == RoleClient {
 		if err := s.keepAnAdmin(ctx, userID); err != nil {
-			return err
+			return false, err
 		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, userID); err != nil {
-		return err
+		return false, err
 	}
 	if role == RoleAdmin {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM scopes WHERE user_id = ?`, userID); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // DeleteUser removes an account. You cannot delete yourself or the last administrator.

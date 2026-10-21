@@ -121,6 +121,10 @@ func Open(path, secret string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("database file mode: %w", err)
+	}
 	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, err

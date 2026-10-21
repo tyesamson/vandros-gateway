@@ -148,7 +148,7 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := browseURL(mount.ID(), resolved)
-	if !csrfOK(r) {
+	if !s.csrfOK(r) {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
 		return
 	}

@@ -191,14 +191,40 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("symlink escape status=%d body=%q", viaResp.StatusCode, viaBody)
 	}
 
-	form := url.Values{"username": {"admin"}, "password": {"wrong-horse-battery"}}
-	bad, err := httpClient.PostForm(srv.URL+"/login", form)
+	loginPage, err := httpClient.Get(srv.URL + "/login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loginBody, _ := io.ReadAll(loginPage.Body)
+	loginPage.Body.Close()
+	loginCSRF := csrfFrom(t, loginPage, string(loginBody))
+	form := url.Values{"username": {"admin"}, "password": {"wrong-horse-battery"}, "csrf": {loginCSRF}}
+	badReq, err := http.NewRequest(http.MethodPost, srv.URL+"/login", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	badReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, cookie := range loginPage.Cookies() {
+		if cookie.Name == csrfCookie {
+			badReq.AddCookie(cookie)
+		}
+	}
+	bad, err := httpClient.Do(badReq)
 	if err != nil {
 		t.Fatal(err)
 	}
 	bad.Body.Close()
 	if bad.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("bad login = %d", bad.StatusCode)
+	}
+	naked := url.Values{"username": {"admin"}, "password": {"wrong-horse-battery"}}
+	missing, err := httpClient.PostForm(srv.URL+"/login", naked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing.Body.Close()
+	if missing.StatusCode != http.StatusForbidden {
+		t.Fatalf("login without csrf = %d", missing.StatusCode)
 	}
 }
 

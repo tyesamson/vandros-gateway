@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 
 const (
 	maxLoginAttempts = 20
+	maxUserAttempts  = 10
 	loginWindow      = 10 * time.Minute
 )
 
@@ -43,7 +45,7 @@ func (s *Server) Handler() http.Handler {
 		panic(err)
 	}
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", noListing(http.FileServerFS(static))))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
@@ -73,12 +75,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("HEAD /d/{mount}/{path...}", s.require(s.download))
 	mux.HandleFunc("POST /z/{mount}", s.require(s.downloadZip))
 	mux.HandleFunc("POST /z/{mount}/{path...}", s.require(s.downloadZip))
-	return security(mux)
+	return security(mux, s.SecureCookie)
+}
+
+func noListing(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "" || r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) require(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(auth.CookieName)
+		cookie, err := r.Cookie(s.sessionCookieName())
 		if err != nil {
 			s.unauthenticated(w, r)
 			return
@@ -111,12 +123,19 @@ func (s *Server) unauthenticated(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "sign in required", http.StatusUnauthorized)
 }
 
-func security(next http.Handler) http.Handler {
+func security(next http.Handler, secure bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		if secure {
+			w.Header().Set("Strict-Transport-Security", "max-age=15552000")
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -136,7 +155,7 @@ type attemptLimit struct {
 	hits map[string][]time.Time
 }
 
-func (l *attemptLimit) blocked(key string, now time.Time) bool {
+func (l *attemptLimit) blocked(key string, now time.Time, max int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.hits = ensureHits(l.hits)
@@ -147,7 +166,7 @@ func (l *attemptLimit) blocked(key string, now time.Time) bool {
 	} else {
 		l.hits[key] = kept
 	}
-	return len(kept) >= maxLoginAttempts
+	return len(kept) >= max
 }
 
 func (l *attemptLimit) fail(key string, now time.Time) {

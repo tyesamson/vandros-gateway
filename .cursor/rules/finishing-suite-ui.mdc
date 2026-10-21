@@ -1,13 +1,13 @@
 ---
-description: Use the Finishing Suite visual template for Docker-hosted web apps such as Vanity Hop and Vandros Gateway. Keep the same colours, type, layout, and branding controls.
+description: Finishing Suite house style for Docker-hosted web apps such as Vanity Hop and Vandros Gateway. Use these colours, type, layout, login screen, and branding controls.
 alwaysApply: false
 ---
 
-# Finishing Suite UI
+# Finishing Suite house style
 
-Docker-hosted web apps in this family share one visual template. Vanity Hop (`io.thefinish.ing`) is the reference. Do not invent a new palette, a light theme, or a different control style.
+Docker-hosted web apps in this family share one visual system. Vanity Hop (`io.thefinish.ing`) is the reference. Do not invent a new palette, a light theme, or a different control style. Branding settings may override the colour tokens at runtime; the defaults below stay the starting point.
 
-Start from these tokens. Branding settings may override them at runtime; the defaults stay these values.
+## Colour and type
 
 ```css
 :root {
@@ -20,14 +20,52 @@ Start from these tokens. Branding settings may override them at runtime; the def
   --button-text: #e6e6dc;
   --error: #ff8b7b;
   --ok: #8ee0b1;
+  --bg-image-opacity: 0.28;
   --ui: "Avenir Next", "Segoe UI", system-ui, sans-serif;
 }
 ```
 
-- Page column: `min(960px, calc(100% - 32px))`, centred.
-- Forms and settings panels: surface sheet, 1px `--line` border, 14px radius, about 36–40rem wide.
-- Lists: separate rounded rows (12px radius, 8px gap), not a full-width underline list. Hover uses `--accent`.
-- Primary buttons: `--accent` background, `--button-text`. Text links and secondary actions stay `--muted` until hover.
-- Header: brand on the left. On the right: navigation, then the signed-in name, then logout separated by a divider.
-- Settings: subpages. Users first, branding second.
-- Branding form, when the app has one: name, background, surface, text, muted text, borders, accent, button text, logo, favicon, background image, background strength (default 0.28), Save branding, and Reset branding. No light/dark toggle.
+Page text is 15px, line-height 1.45, left-aligned. Headings are weight 600, letter-spacing -0.03em. `h1` is 1.5rem. Labels are 0.8rem in `--muted`.
+
+Set `font-size: 15px` on `body` only. Do not set it on `html`. The root stays 16px, and `rem` is based on that root, so a 36rem sheet is 576px on every app. Setting 15px on the root shrinks the sheet to 540px.
+
+## Page
+
+- Column: `min(960px, calc(100% - 32px))`, centred, padded 24px above and 72px below.
+- A background image, when set, sits on a fixed layer at `--bg-image-opacity` (default 0.28). The page background stays `--bg`.
+- Centred sheets (login, settings forms, branding): surface fill, 1px `--line` border, 14px radius, 24px padding, max-width 36rem.
+- Lists span the column. Each item is its own rounded row (12px radius, 8px gap), not a full-width underline list. Hover uses `--accent`.
+
+## Header
+
+Brand on the left: the logo if one is set, otherwise the brand name in weight 700. The logo is 28px tall.
+
+Once signed in, the right side is the signed-in name, then navigation, then logout. The name is in `--muted`, with a divider on its right. Navigation and logout stay `--muted` until hover.
+
+A logged-out page keeps the same header and shows nothing on the right.
+
+## Login
+
+Match Vanity Hop's logged-out screen.
+
+- Same page column and header. No navigation.
+- One centred sheet, max-width 36rem.
+- When a logo is set, repeat it inside the sheet at 36px tall, above the heading.
+- Heading is **Log in**. Do not use the product name as the heading. No lede under it.
+- Then the credential fields the app actually needs. Vanity Hop asks for a password only. An app with accounts asks for username, then password.
+- Primary button label is **Continue**.
+- Document title is `Log in · {brand}`.
+
+## Controls
+
+- Primary button: `--accent` background, `--button-text`, 8px radius. Hover is `color-mix(in srgb, var(--accent) 82%, black)`.
+- Secondary actions and text buttons use `--muted` until hover, with no filled background.
+- Inputs: `--bg` fill, 1px `--line` border, 8px radius, 10px 12px padding, full width of the sheet.
+- Dropdowns are ordinary `select` elements. Every page loads `/static/menu.js`, which replaces the operating-system menu with a page-drawn list. The highlighted row uses `--accent` and `--button-text`. Do not leave a dropdown on the system popup, and do not build a separate menu for one screen.
+- Errors use `--error`. Success uses `--ok`.
+
+## Settings
+
+Subpages, in this order: Users & Scope, then Branding.
+
+Branding, when the app has it: name, background, surface, text, muted text, borders, accent, button text, logo, favicon, background image, background strength (default 0.28), Save branding, and Reset branding. No light/dark toggle.

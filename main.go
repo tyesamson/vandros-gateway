@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -56,6 +55,7 @@ func run(args []string, log *slog.Logger) error {
 	if err := users.EnsureAdmin(context.Background(), os.Getenv("VANDROS_ADMIN_USER"), os.Getenv("VANDROS_ADMIN_PASSWORD")); err != nil {
 		return err
 	}
+	_ = os.Unsetenv("VANDROS_ADMIN_PASSWORD")
 	if err := users.EnsureBranding(context.Background(), cfg.BrandName); err != nil {
 		return err
 	}
@@ -124,16 +124,14 @@ func loadLogo(path string) ([]byte, string, error) {
 	if len(body) > 2<<20 {
 		return nil, "", errors.New("branding.logo is larger than 2MiB")
 	}
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".svg":
-		return body, "image/svg+xml", nil
+	switch config.ImageExtension(body) {
 	case ".png":
 		return body, "image/png", nil
-	case ".jpg", ".jpeg":
+	case ".jpg":
 		return body, "image/jpeg", nil
 	case ".webp":
 		return body, "image/webp", nil
 	default:
-		return nil, "", errors.New("branding.logo must be png, jpeg, webp, or svg")
+		return nil, "", errors.New("branding.logo must be png, jpeg, or webp")
 	}
 }

@@ -76,7 +76,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, tmpl, se
 	case "user":
 		data.Title = data.Focus.Username
 	default:
-		data.Title = "Users"
+		data.Title = "Users & Scope"
 	}
 	if msg, ok := settingMessages[r.URL.Query().Get("ok")]; ok {
 		data.Notice = msg
@@ -139,6 +139,15 @@ func (s *Server) settingsPassword(w http.ResponseWriter, r *http.Request) {
 		s.settingsErr(w, r, dest, "invalid")
 		return
 	}
+	if err := s.Users.RevokeSessions(r.Context(), id); err != nil {
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+	if actor, ok := auth.CurrentUser(r.Context()); ok && actor.ID == id {
+		s.clearSession(w)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
 	s.settingsOK(w, r, dest, "password")
 }
 
@@ -155,9 +164,21 @@ func (s *Server) settingsRole(w http.ResponseWriter, r *http.Request) {
 	if s.badCSRF(w, r, dest) {
 		return
 	}
-	if err := s.Users.SetRole(r.Context(), id, r.PostForm.Get("role")); err != nil {
+	changed, err := s.Users.SetRole(r.Context(), id, r.PostForm.Get("role"))
+	if err != nil {
 		s.settingsErr(w, r, dest, "invalid")
 		return
+	}
+	if changed {
+		if err := s.Users.RevokeSessions(r.Context(), id); err != nil {
+			http.Error(w, "something went wrong", http.StatusInternalServerError)
+			return
+		}
+		if actor, ok := auth.CurrentUser(r.Context()); ok && actor.ID == id {
+			s.clearSession(w)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
 	}
 	s.settingsOK(w, r, dest, "role")
 }
@@ -322,7 +343,7 @@ func (s *Server) settingsPage(r *http.Request) (page, error) {
 }
 
 func (s *Server) ensureCSRF(w http.ResponseWriter, r *http.Request) string {
-	if cookie, err := r.Cookie(csrfCookie); err == nil && len(cookie.Value) >= 32 {
+	if cookie, err := r.Cookie(s.csrfName()); err == nil && len(cookie.Value) >= 32 {
 		return cookie.Value
 	}
 	raw := make([]byte, 32)
@@ -331,26 +352,26 @@ func (s *Server) ensureCSRF(w http.ResponseWriter, r *http.Request) string {
 	}
 	token := hex.EncodeToString(raw)
 	http.SetCookie(w, &http.Cookie{
-		Name:     csrfCookie,
+		Name:     s.csrfName(),
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 		Secure:   s.SecureCookie,
 	})
 	return token
 }
 
 func (s *Server) badCSRF(w http.ResponseWriter, r *http.Request, dest string) bool {
-	if csrfOK(r) {
+	if s.csrfOK(r) {
 		return false
 	}
 	s.settingsErr(w, r, dest, "csrf")
 	return true
 }
 
-func csrfOK(r *http.Request) bool {
-	cookie, err := r.Cookie(csrfCookie)
+func (s *Server) csrfOK(r *http.Request) bool {
+	cookie, err := r.Cookie(s.csrfName())
 	sent := r.PostFormValue("csrf")
 	if err != nil || len(sent) != len(cookie.Value) || len(sent) < 32 {
 		return false

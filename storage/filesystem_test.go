@@ -129,7 +129,7 @@ func TestJailAndRange(t *testing.T) {
 
 func TestCanonicalFollowsLinksInsideTheMount(t *testing.T) {
 	root := t.TempDir()
-	job := filepath.Join(root, "Project_X", "Deliverables")
+	job := filepath.Join(root, "client", "Deliverables")
 	if err := os.MkdirAll(job, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -162,13 +162,13 @@ func TestCanonicalFollowsLinksInsideTheMount(t *testing.T) {
 		t.Fatal("missing mount")
 	}
 
-	if got, err := mount.Canonical("Project_X/Deliverables/via"); err != nil || got != "secret.txt" {
+	if got, err := mount.Canonical("client/Deliverables/via"); err != nil || got != "secret.txt" {
 		t.Fatalf("via = %q, %v", got, err)
 	}
-	if got, err := mount.Canonical("Project_X/Deliverables/alias"); err != nil || got != "Project_X/Deliverables/reel.mov" {
+	if got, err := mount.Canonical("client/Deliverables/alias"); err != nil || got != "client/Deliverables/reel.mov" {
 		t.Fatalf("alias = %q, %v", got, err)
 	}
-	if _, err := mount.Canonical("Project_X/Deliverables/loop-a"); err == nil {
+	if _, err := mount.Canonical("client/Deliverables/loop-a"); err == nil {
 		t.Fatal("symlink loop was accepted")
 	}
 }

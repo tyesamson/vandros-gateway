@@ -17,26 +17,26 @@ func TestSessionAndScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	client, err := store.CreateUser(ctx, "client_abc", "correct-horse-battery", RoleClient, []Scope{{
-		MountID: "promise",
-		Path:    "Project_X/Deliverables",
+		MountID: "library",
+		Path:    "client/Deliverables",
 		Read:    true,
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if admin.Allows("promise", "../secret", PermRead) {
+	if admin.Allows("library", "../secret", PermRead) {
 		t.Fatal("admin allowed an escaping path")
 	}
-	if !admin.Allows("promise", "anywhere", PermDelete) {
+	if !admin.Allows("library", "anywhere", PermDelete) {
 		t.Fatal("admin should be allowed inside a mount")
 	}
-	if !client.Allows("promise", "Project_X/Deliverables/reel.mov", PermRead) {
+	if !client.Allows("library", "client/Deliverables/reel.mov", PermRead) {
 		t.Fatal("client should read inside the scope")
 	}
-	if client.Allows("promise", "Project_X", PermRead) || client.Allows("promise", "secret", PermRead) || client.Allows("fileserv", "Project_X/Deliverables", PermRead) {
+	if client.Allows("library", "client", PermRead) || client.Allows("library", "secret", PermRead) || client.Allows("other", "client/Deliverables", PermRead) {
 		t.Fatal("client scope leaked")
 	}
-	if client.Allows("promise", "Project_X/Deliverables/reel.mov", PermWrite) {
+	if client.Allows("library", "client/Deliverables/reel.mov", PermWrite) {
 		t.Fatal("read scope granted write")
 	}
 
@@ -70,7 +70,7 @@ func TestForeignKeys(t *testing.T) {
 	store := openTestStore(t)
 	ctx := t.Context()
 	user, err := store.CreateUser(ctx, "client_abc", "correct-horse-battery", RoleClient, []Scope{{
-		MountID: "promise", Path: "job", Read: true,
+		MountID: "library", Path: "job", Read: true,
 	}})
 	if err != nil {
 		t.Fatal(err)

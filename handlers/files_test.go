@@ -20,7 +20,7 @@ import (
 
 func TestPortalAccessAndRange(t *testing.T) {
 	root := t.TempDir()
-	job := filepath.Join(root, "Project_X", "Deliverables")
+	job := filepath.Join(root, "client", "Deliverables")
 	if err := os.MkdirAll(job, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := config.Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: promise\n    name: Promise\n    path: " + root + "\n"))
+	cfg, err := config.Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: library\n    name: Library\n    path: " + root + "\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +57,8 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	client, err := users.CreateUser(ctx, "client_abc", "correct-horse-battery", auth.RoleClient, []auth.Scope{{
-		MountID: "promise",
-		Path:    "Project_X/Deliverables",
+		MountID: "library",
+		Path:    "client/Deliverables",
 		Read:    true,
 	}})
 	if err != nil {
@@ -91,7 +91,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("health = %d", health.StatusCode)
 	}
 
-	anon, err := httpClient.Get(srv.URL + "/b/promise")
+	anon, err := httpClient.Get(srv.URL + "/b/library")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("anonymous browse = %d", anon.StatusCode)
 	}
 
-	secretReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/d/promise/secret.txt", nil)
+	secretReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/d/library/secret.txt", nil)
 	secretReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	secretResp, err := httpClient.Do(secretReq)
 	if err != nil {
@@ -112,7 +112,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("client secret status=%d body=%q", secretResp.StatusCode, secretBody)
 	}
 
-	parentReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/promise", nil)
+	parentReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library", nil)
 	parentReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	parentResp, err := httpClient.Do(parentReq)
 	if err != nil {
@@ -123,7 +123,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("client parent listing = %d", parentResp.StatusCode)
 	}
 
-	fileURL := srv.URL + "/d/promise/Project_X/Deliverables/my%20reel.mov"
+	fileURL := srv.URL + "/d/library/client/Deliverables/my%20reel.mov"
 	rangeReq, _ := http.NewRequest(http.MethodGet, fileURL, nil)
 	rangeReq.Header.Set("Range", "bytes=0-3")
 	rangeReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
@@ -143,7 +143,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("disposition = %s", rangeResp.Header.Get("Content-Disposition"))
 	}
 
-	listReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/promise/Project_X/Deliverables", nil)
+	listReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables", nil)
 	listReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	listResp, err := httpClient.Do(listReq)
 	if err != nil {
@@ -155,7 +155,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("listing status=%d body=%s", listResp.StatusCode, page)
 	}
 	csrf := csrfFrom(t, listResp, string(page))
-	zipBody := postZip(t, httpClient, srv.URL+"/z/promise/Project_X/Deliverables", token, csrf, url.Values{
+	zipBody := postZip(t, httpClient, srv.URL+"/z/library/client/Deliverables", token, csrf, url.Values{
 		"csrf": {csrf},
 		"file": {"my reel.mov"},
 	})
@@ -163,14 +163,14 @@ func TestPortalAccessAndRange(t *testing.T) {
 	if len(names) != 1 || names["my reel.mov"] != string(payload) {
 		t.Fatalf("selected zip = %#v", names)
 	}
-	escaped := postZipStatus(t, httpClient, srv.URL+"/z/promise/Project_X/Deliverables", token, csrf, url.Values{
+	escaped := postZipStatus(t, httpClient, srv.URL+"/z/library/client/Deliverables", token, csrf, url.Values{
 		"csrf": {csrf},
 		"file": {"../../secret.txt"},
 	})
 	if escaped != http.StatusNotFound {
 		t.Fatalf("zip escape = %d", escaped)
 	}
-	allBody := postZip(t, httpClient, srv.URL+"/z/promise/Project_X/Deliverables", token, csrf, url.Values{
+	allBody := postZip(t, httpClient, srv.URL+"/z/library/client/Deliverables", token, csrf, url.Values{
 		"csrf": {csrf},
 		"all":  {"1"},
 	})
@@ -179,7 +179,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("download all = %#v", allNames)
 	}
 
-	viaReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/d/promise/Project_X/Deliverables/via", nil)
+	viaReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/d/library/client/Deliverables/via", nil)
 	viaReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	viaResp, err := httpClient.Do(viaReq)
 	if err != nil {

@@ -24,15 +24,6 @@ branding:
   logo: ""
 
 mounts:
-  - id: promise
-    name: Promise
-    path: /mnt/promise
-  - id: fileserv
-    name: Fileserv
-    path: /mnt/fileserv
-  - id: downloads
-    name: Downloads
-    path: /mnt/downloads
-  - id: plex
-    name: Plex
-    path: /mnt/plex
+  - id: library
+    name: Library
+    path: /mnt/example

@@ -11,7 +11,7 @@
 #     -v /etc/localtime:/etc/localtime:ro \
 #     -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
 #     -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
-#     -v /mnt/promise:/mnt/promise:ro \
+#     -v /mnt/example:/mnt/example:ro \
 #     -e TZ="Pacific/Auckland" \
 #     -e VANDROS_SESSION_SECRET -e VANDROS_ADMIN_USER -e VANDROS_ADMIN_PASSWORD \
 #     ghcr.io/tyesamson/vandros-gateway:latest

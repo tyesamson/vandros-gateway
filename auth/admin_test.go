@@ -26,7 +26,7 @@ func TestSettingsRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AddScope(ctx, client.ID, Scope{MountID: "promise", Path: "Project_X/Deliverables", Read: true}); err != nil {
+	if err := store.AddScope(ctx, client.ID, Scope{MountID: "library", Path: "client/Deliverables", Read: true}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := store.userByID(ctx, client.ID)

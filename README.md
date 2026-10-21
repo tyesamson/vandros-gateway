@@ -28,18 +28,9 @@ branding:
   name: Vandros Gateway
 
 mounts:
-  - id: promise
-    name: Promise
-    path: /mnt/promise
-  - id: fileserv
-    name: Fileserv
-    path: /mnt/fileserv
-  - id: downloads
-    name: Downloads
-    path: /mnt/downloads
-  - id: plex
-    name: Plex
-    path: /mnt/plex
+  - id: library
+    name: Library
+    path: /mnt/example
 ```
 
 ```bash
@@ -54,10 +45,7 @@ docker run --restart=unless-stopped -d \
   -v /etc/localtime:/etc/localtime:ro \
   -v /mnt/docker/vandros-gateway/config.yaml:/etc/vandros/config.yaml:ro \
   -v /mnt/docker/vandros-gateway/data:/var/lib/vandros \
-  -v /mnt/promise:/mnt/promise:ro \
-  -v /mnt/fileserv:/mnt/fileserv:ro \
-  -v /mnt/downloads:/mnt/downloads:ro \
-  -v /mnt/plex:/mnt/plex:ro \
+  -v /mnt/example:/mnt/example:ro \
   -e TZ="Pacific/Auckland" \
   -e VANDROS_SESSION_SECRET="at least 32 characters" \
   -e VANDROS_ADMIN_USER=admin \

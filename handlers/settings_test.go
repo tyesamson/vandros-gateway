@@ -21,7 +21,7 @@ func TestSettingsAreAdminOnly(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, "job"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.Parse([]byte("database:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: promise\n    name: Promise\n    path: " + root + "\n"))
+	cfg, err := config.Parse([]byte("database:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: library\n    name: Library\n    path: " + root + "\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestSettingsAreAdminOnly(t *testing.T) {
 		"username": {"client_two"},
 		"password": {"correct-horse-battery"},
 		"confirm":  {"correct-horse-stapler"},
-		"mount":    {"promise"},
+		"mount":    {"library"},
 		"read":     {"on"},
 	}
 	postForm(t, clientHTTP, srv.URL+"/settings/users", adminToken, csrf, mismatch)
@@ -127,7 +127,7 @@ func TestSettingsAreAdminOnly(t *testing.T) {
 		"username": {"client_two"},
 		"password": {"correct-horse-battery"},
 		"confirm":  {"correct-horse-battery"},
-		"mount":    {"promise"},
+		"mount":    {"library"},
 		"path":     {"job"},
 		"read":     {"on"},
 	}
@@ -139,7 +139,7 @@ func TestSettingsAreAdminOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(created.Scopes) != 1 || created.Scopes[0].MountID != "promise" || created.Scopes[0].Path != "job" || !created.Scopes[0].Read {
+	if len(created.Scopes) != 1 || created.Scopes[0].MountID != "library" || created.Scopes[0].Path != "job" || !created.Scopes[0].Read {
 		t.Fatalf("scope = %+v", created.Scopes)
 	}
 	edit := getWith(t, clientHTTP, srv.URL+"/settings/users/"+strconv.FormatInt(created.ID, 10), adminToken, csrf)

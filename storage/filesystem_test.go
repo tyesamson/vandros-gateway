@@ -46,12 +46,12 @@ func TestJailAndRange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	portal, err := Open([]config.Mount{{ID: "promise", Name: "Promise", Path: root}})
+	portal, err := Open([]config.Mount{{ID: "library", Name: "Library", Path: root}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { portal.Close() })
-	mount, ok := portal.Get("promise")
+	mount, ok := portal.Get("library")
 	if !ok {
 		t.Fatal("missing mount")
 	}
@@ -109,7 +109,7 @@ func TestJailAndRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	req := httptest.NewRequest(http.MethodGet, "/d/promise/big.bin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/d/library/big.bin", nil)
 	req.Header.Set("Range", "bytes=-4")
 	rr := httptest.NewRecorder()
 	Serve(rr, req, "big.bin", info.ModTime(), f)
@@ -152,12 +152,12 @@ func TestCanonicalFollowsLinksInsideTheMount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	portal, err := Open([]config.Mount{{ID: "promise", Name: "Promise", Path: root}})
+	portal, err := Open([]config.Mount{{ID: "library", Name: "Library", Path: root}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { portal.Close() })
-	mount, ok := portal.Get("promise")
+	mount, ok := portal.Get("library")
 	if !ok {
 		t.Fatal("missing mount")
 	}

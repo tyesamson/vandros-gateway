@@ -29,7 +29,7 @@ func TestParseMounts(t *testing.T) {
 	if cfg.Listen != ":24731" || cfg.SessionTTL != 12*time.Hour || cfg.BrandName != "The Finish" {
 		t.Fatalf("defaults not applied: %+v", cfg)
 	}
-	if len(cfg.Mounts) != 2 || cfg.Mounts[0].ID != "promise" {
+	if len(cfg.Mounts) != 2 || cfg.Mounts[0].ID != "library" {
 		t.Fatalf("mounts = %+v", cfg.Mounts)
 	}
 
@@ -45,5 +45,5 @@ func TestParseMounts(t *testing.T) {
 }
 
 func yamlMounts(db, a, b string) string {
-	return fmt.Sprintf("database:\n  path: %q\nbranding:\n  name: The Finish\nmounts:\n  - id: promise\n    name: Promise\n    path: %q\n  - id: fileserv\n    name: Fileserv\n    path: %q\n", db, a, b)
+	return fmt.Sprintf("database:\n  path: %q\nbranding:\n  name: The Finish\nmounts:\n  - id: library\n    name: Library\n    path: %q\n  - id: other\n    name: Other\n    path: %q\n", db, a, b)
 }

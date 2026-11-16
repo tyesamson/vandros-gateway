@@ -122,6 +122,31 @@ func TestSettingsAreAdminOnly(t *testing.T) {
 	}
 	postForm(t, clientHTTP, srv.URL+"/settings/users", adminToken, csrf, mismatch)
 
+	short := url.Values{
+		"csrf":     {csrf},
+		"username": {"client two"},
+		"password": {"temp"},
+		"confirm":  {"temp"},
+		"mount":    {"library"},
+		"read":     {"on"},
+	}
+	shortResp := postForm(t, clientHTTP, srv.URL+"/settings/users", adminToken, csrf, short)
+	if !strings.Contains(shortResp.Header.Get("Location"), "err=username") {
+		t.Fatalf("bad username = %s", shortResp.Header.Get("Location"))
+	}
+	short.Set("username", "client_two")
+	shortResp = postForm(t, clientHTTP, srv.URL+"/settings/users", adminToken, csrf, short)
+	if !strings.Contains(shortResp.Header.Get("Location"), "err=pwlen") {
+		t.Fatalf("short password = %s", shortResp.Header.Get("Location"))
+	}
+	short.Set("password", "correct-horse-battery")
+	short.Set("confirm", "correct-horse-battery")
+	short.Set("path", "../secret")
+	shortResp = postForm(t, clientHTTP, srv.URL+"/settings/users", adminToken, csrf, short)
+	if !strings.Contains(shortResp.Header.Get("Location"), "err=path") {
+		t.Fatalf("bad directory = %s", shortResp.Header.Get("Location"))
+	}
+
 	form := url.Values{
 		"csrf":     {csrf},
 		"username": {"client_two"},

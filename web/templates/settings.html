@@ -35,10 +35,10 @@
         <p class="note">Creates a client. Open the account afterwards to change the role or add another scope.</p>
         <form class="stack" method="post" action="/settings/users">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
-          <label>Username
+          <label>Username <em>letters, numbers, . _ -</em>
             <input name="username" autocomplete="off" required>
           </label>
-          <label>Password
+          <label>Password <em>12 to 128 characters</em>
             <input name="password" type="password" autocomplete="new-password" required>
           </label>
           <label>Confirm password
@@ -173,7 +173,7 @@
 
         <form class="stack" method="post" action="/settings/users/{{.Focus.ID}}/password">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
-          <label>New password
+          <label>New password <em>12 to 128 characters</em>
             <input name="password" type="password" autocomplete="new-password" required>
           </label>
           <label>Confirm password

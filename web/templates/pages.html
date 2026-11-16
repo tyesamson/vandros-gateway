@@ -80,7 +80,13 @@
     <main>
       <header class="ledger">
         <h1>{{.Title}}</h1>
-        {{if .Rows}}<span class="count">{{len .Rows}}</span>{{end}}
+        <div class="ledger-side">
+          <form method="get" action="{{.BrowseURL}}">
+            <input type="hidden" name="hidden" value="hide">
+            <label class="check"><input type="checkbox" {{if .ShowHidden}}checked{{end}} onchange="this.form.elements.hidden.value=this.checked?'show':'hide';this.form.submit()"> Show hidden files</label>
+          </form>
+          {{if .Rows}}<span class="count">{{len .Rows}}</span>{{end}}
+        </div>
       </header>
       {{if .Error}}<p class="flash error" role="alert">{{.Error}}</p>{{end}}
       {{if .Notice}}<p class="flash ok" role="status">{{.Notice}}</p>{{end}}
@@ -114,7 +120,7 @@
         {{end}}
       </ul>
       {{else}}
-      <p class="empty">{{if .CanWrite}}Drop files here.{{else}}This folder is empty.{{end}}</p>
+      <p class="empty">{{if .Missing}}This folder is not available.{{else if .CanWrite}}Drop files here.{{else}}This folder is empty.{{end}}</p>
       {{end}}
       {{if .CanWrite}}
       <div class="drop" hidden data-upload="{{.UploadURL}}" data-csrf="{{.CSRF}}">

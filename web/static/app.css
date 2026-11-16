@@ -68,7 +68,7 @@ button, input, select { font: inherit; }
   font-size: 1.15rem;
 }
 
-.mark img, .hero-logo, .preview-img {
+.mark img, .preview-img {
   display: block;
   height: 28px;
   width: auto;
@@ -76,7 +76,6 @@ button, input, select { font: inherit; }
   object-fit: contain;
 }
 
-.hero-logo { height: 36px; margin-bottom: 16px; }
 .preview-img {
   height: auto;
   max-height: 48px;
@@ -474,6 +473,13 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost):not(.icon):hover {
 }
 
 .ledger h1 { margin: 0; }
+.ledger-side {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ledger-side form { margin: 0; }
+.ledger-side .check { color: var(--muted); }
 
 .toolbar {
   display: flex;

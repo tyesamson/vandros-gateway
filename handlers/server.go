@@ -235,8 +235,11 @@ type page struct {
 	ZipURL        string
 	UploadURL     string
 	DeleteURL     string
+	BrowseURL     string
 	CanWrite      bool
 	HasFiles      bool
+	ShowHidden    bool
+	Missing       bool
 	Accounts      []accountView
 	MountOptions  []mountOption
 	Section       string

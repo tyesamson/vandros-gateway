@@ -35,6 +35,12 @@ func TestPortalAccessAndRange(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(job, "notes.txt"), []byte("hello notes"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(job, ".DS_Store"), []byte("junk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(job, ".Spotlight-V100"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink("../../secret.txt", filepath.Join(job, "via")); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +158,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 	}
 	page, _ := io.ReadAll(listResp.Body)
 	listResp.Body.Close()
-	if listResp.StatusCode != http.StatusOK || !strings.Contains(string(page), "my reel.mov") || strings.Contains(string(page), "secret.txt") || strings.Contains(string(page), "via") || strings.Contains(string(page), "Upload") || strings.Contains(string(page), "Delete") {
+	if listResp.StatusCode != http.StatusOK || !strings.Contains(string(page), "my reel.mov") || !strings.Contains(string(page), "Show hidden files") || strings.Contains(string(page), ".DS_Store") || strings.Contains(string(page), ".Spotlight-V100") || strings.Contains(string(page), "secret.txt") || strings.Contains(string(page), "via") || strings.Contains(string(page), "Upload") || strings.Contains(string(page), "Delete") {
 		t.Fatalf("listing status=%d body=%s", listResp.StatusCode, page)
 	}
 	csrf := csrfFrom(t, listResp, string(page))
@@ -176,8 +182,30 @@ func TestPortalAccessAndRange(t *testing.T) {
 		"all":  {"1"},
 	})
 	allNames := zipNames(t, allBody)
-	if allNames["my reel.mov"] != string(payload) || allNames["notes.txt"] != "hello notes" || len(allNames) != 2 {
+	if _, hidden := allNames[".DS_Store"]; hidden || allNames["my reel.mov"] != string(payload) || allNames["notes.txt"] != "hello notes" || len(allNames) != 2 {
 		t.Fatalf("download all = %#v", allNames)
+	}
+	showReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables?hidden=show", nil)
+	showReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	showResp, err := (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(showReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	showResp.Body.Close()
+	if showResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("show hidden redirect = %d", showResp.StatusCode)
+	}
+	shown, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables", nil)
+	shown.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	shown.AddCookie(&http.Cookie{Name: "vandros_hidden", Value: "show"})
+	shownResp, err := httpClient.Do(shown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	showPage, _ := io.ReadAll(shownResp.Body)
+	shownResp.Body.Close()
+	if shownResp.StatusCode != http.StatusOK || !strings.Contains(string(showPage), ".DS_Store") || !strings.Contains(string(showPage), ".Spotlight-V100") {
+		t.Fatalf("show hidden status=%d body=%s", shownResp.StatusCode, showPage)
 	}
 
 	viaReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/d/library/client/Deliverables/via", nil)
@@ -510,6 +538,80 @@ func postZipResponse(t *testing.T, client *http.Client, rawURL, session, csrf st
 		t.Fatal(err)
 	}
 	return resp
+}
+
+func TestClientCanOpenScopeThroughSymlink(t *testing.T) {
+	root := t.TempDir()
+	job := filepath.Join(root, "client", "inbox")
+	if err := os.MkdirAll(job, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(job, "reel.mov"), []byte("picture"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("client", filepath.Join(root, "alias")); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: library\n    name: Library\n    path: " + root + "\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	portal, err := storage.Open(cfg.Mounts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { portal.Close() })
+	users, err := auth.Open(filepath.Join(t.TempDir(), "portal.db"), "test-session-secret-at-least-32-chars")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { users.Close() })
+	ctx := t.Context()
+	client, err := users.CreateUser(ctx, "graded", "correct-horse-battery", auth.RoleClient, []auth.Scope{{
+		MountID: "library", Path: "alias/inbox", Read: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := users.CreateSession(ctx, client.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer((&Server{Brand: "The Finish", SessionTTL: time.Hour, Portal: portal, Users: users}).Handler())
+	t.Cleanup(srv.Close)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/alias/inbox", nil)
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "reel.mov") {
+		t.Fatalf("scoped symlink status=%d body=%s", resp.StatusCode, body)
+	}
+
+	missingUser, err := users.CreateUser(ctx, "missing", "correct-horse-battery", auth.RoleClient, []auth.Scope{{
+		MountID: "library", Path: "no/such", Read: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	missingToken, _, err := users.CreateSession(ctx, missingUser.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	miss, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/no/such", nil)
+	miss.AddCookie(&http.Cookie{Name: auth.CookieName, Value: missingToken})
+	missResp, err := srv.Client().Do(miss)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missBody, _ := io.ReadAll(missResp.Body)
+	missResp.Body.Close()
+	if missResp.StatusCode != http.StatusOK || !strings.Contains(string(missBody), "This folder is not available.") {
+		t.Fatalf("missing scope status=%d body=%s", missResp.StatusCode, missBody)
+	}
 }
 
 func zipNames(t *testing.T, body []byte) map[string]string {

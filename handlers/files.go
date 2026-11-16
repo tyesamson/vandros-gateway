@@ -43,19 +43,33 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if resolved != rel {
+	if resolved != rel && user.Allows(mount.ID(), resolved, auth.PermRead) {
 		http.Redirect(w, r, browseURL(mount.ID(), resolved), http.StatusTemporaryRedirect)
 		return
 	}
-	entries, err := mount.List(resolved)
-	if err != nil {
-		writeFSError(s.Log, w, r, err)
+	if q := r.URL.Query().Get("hidden"); q == "show" || q == "hide" {
+		s.setShowHidden(w, q == "show")
+		http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
 		return
+	}
+	showHidden := showHidden(r)
+	entries, err := mount.List(rel)
+	missing := false
+	if err != nil {
+		if !hiddenFSError(err) {
+			writeFSError(s.Log, w, r, err)
+			return
+		}
+		entries = nil
+		missing = true
 	}
 	prefix, _ := readPrefix(user, mount.ID(), rel)
 	rows := make([]row, 0, len(entries))
 	hasFiles := false
 	for _, ent := range entries {
+		if !showHidden && hiddenEntry(ent.Name) {
+			continue
+		}
 		item := row{
 			Name:     ent.Name,
 			Modified: formatTime(ent.ModTime),
@@ -98,11 +112,14 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 		Title:     title,
 		Crumbs:    crumbs,
 		Rows:      rows,
-		ZipURL:    zipURL(mount.ID(), rel),
-		UploadURL: uploadURL(mount.ID(), rel),
-		DeleteURL: deleteURL(mount.ID(), rel),
-		CanWrite:  user.Allows(mount.ID(), resolved, auth.PermWrite),
-		HasFiles:  hasFiles,
+		ZipURL:     zipURL(mount.ID(), rel),
+		UploadURL:  uploadURL(mount.ID(), rel),
+		DeleteURL:  deleteURL(mount.ID(), rel),
+		BrowseURL:  browseURL(mount.ID(), rel),
+		CanWrite:   user.Allows(mount.ID(), resolved, auth.PermWrite),
+		HasFiles:   hasFiles,
+		ShowHidden: showHidden,
+		Missing:    missing,
 	}
 	switch r.URL.Query().Get("err") {
 	case "pick":
@@ -165,11 +182,11 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	mount, _, resolved, ok := s.permit(w, r, user, auth.PermRead)
+	mount, rel, _, ok := s.permit(w, r, user, auth.PermRead)
 	if !ok {
 		return
 	}
-	back := browseURL(mount.ID(), resolved)
+	back := browseURL(mount.ID(), rel)
 	if !s.csrfOK(r) {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
 		return
@@ -177,7 +194,7 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 	var files []zipFile
 	var err error
 	if r.PostForm.Get("all") == "1" {
-		files, err = folderFiles(mount, user, resolved)
+		files, err = folderFiles(mount, user, rel, showHidden(r))
 		if err != nil {
 			writeFSError(s.Log, w, r, err)
 			return
@@ -187,7 +204,7 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		files, ok = selectedFiles(mount, user, resolved, r.PostForm["file"])
+		files, ok = selectedFiles(mount, user, rel, r.PostForm["file"])
 		if !ok {
 			http.NotFound(w, r)
 			return
@@ -197,7 +214,7 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	name := path.Base(resolved)
+	name := path.Base(rel)
 	if name == "." || name == "/" || name == "" {
 		name = mount.Name()
 	}
@@ -223,13 +240,43 @@ type zipFile struct {
 	rel  string
 }
 
-func folderFiles(mount storage.Mount, user auth.User, dir string) ([]zipFile, error) {
+func hiddenEntry(name string) bool {
+	return strings.HasPrefix(name, ".")
+}
+
+const hiddenCookie = "vandros_hidden"
+
+func showHidden(r *http.Request) bool {
+	c, err := r.Cookie(hiddenCookie)
+	return err == nil && c.Value == "show"
+}
+
+func (s *Server) setShowHidden(w http.ResponseWriter, show bool) {
+	value := "hide"
+	if show {
+		value = "show"
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     hiddenCookie,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   365 * 24 * 60 * 60,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.SecureCookie,
+	})
+}
+
+func folderFiles(mount storage.Mount, user auth.User, dir string, showHidden bool) ([]zipFile, error) {
 	entries, err := mount.List(dir)
 	if err != nil {
 		return nil, err
 	}
 	files := make([]zipFile, 0, len(entries))
 	for _, ent := range entries {
+		if !showHidden && hiddenEntry(ent.Name) {
+			continue
+		}
 		rel := ent.Rel
 		if ent.IsLink {
 			target, err := mount.Canonical(ent.Rel)
@@ -274,7 +321,7 @@ func selectedFiles(mount storage.Mount, user auth.User, dir string, names []stri
 			return nil, false
 		}
 		resolved, err := mount.Canonical(cleaned)
-		if err != nil || !user.Allows(mount.ID(), resolved, auth.PermRead) {
+		if err != nil || !allowsCanonical(mount, user, mount.ID(), cleaned, resolved, auth.PermRead) {
 			return nil, false
 		}
 		if _, ok := seen[resolved]; ok {
@@ -324,11 +371,47 @@ func (s *Server) permit(w http.ResponseWriter, r *http.Request, user auth.User, 
 		return storage.Mount{}, "", "", false
 	}
 	resolved, err := mount.Canonical(rel)
-	if err != nil || !user.Allows(id, resolved, perm) {
+	if err != nil || !allowsCanonical(mount, user, id, rel, resolved, perm) {
 		http.NotFound(w, r)
 		return storage.Mount{}, "", "", false
 	}
 	return mount, rel, resolved, true
+}
+
+// allowsCanonical reports whether resolved stays inside the real directory of a
+// scope that already contains requested. A scope path may itself be a symlink.
+func allowsCanonical(mount storage.Mount, user auth.User, mountID, requested, resolved string, perm auth.Perm) bool {
+	if user.Role == auth.RoleAdmin {
+		return true
+	}
+	for _, scope := range user.Scopes {
+		if scope.MountID != mountID || !scopePermits(scope, perm) {
+			continue
+		}
+		scopePath, err := relpath.Clean(scope.Path)
+		if err != nil || !relpath.Within(scopePath, requested) {
+			continue
+		}
+		scopeRoot, err := mount.Canonical(scopePath)
+		if err != nil || !relpath.Within(scopeRoot, resolved) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func scopePermits(scope auth.Scope, perm auth.Perm) bool {
+	switch perm {
+	case auth.PermRead:
+		return scope.Read
+	case auth.PermWrite:
+		return scope.Write
+	case auth.PermDelete:
+		return scope.Delete
+	default:
+		return false
+	}
 }
 
 func (s *Server) entryPoints(user auth.User) []mountLink {

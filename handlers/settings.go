@@ -4,11 +4,13 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/tyesamson/vandros-gateway/auth"
+	"github.com/tyesamson/vandros-gateway/internal/relpath"
 )
 
 const csrfCookie = "vandros_csrf"
@@ -28,6 +30,12 @@ var settingMessages = map[string]string{
 	"unscope":  "Scope removed.",
 	"csrf":     "The form expired. Try again.",
 	"mismatch": "Those passwords do not match.",
+	"username": "Username: 1–64 characters, letters, numbers, and . _ - after the first character.",
+	"exists":   "That username is already in use.",
+	"pwlen":    "Password: 12 to 128 characters.",
+	"path":     "Directory has to stay inside the mount.",
+	"perm":     "Choose Read, Write, or Delete.",
+	"mount":    "Choose a mount.",
 	"invalid":  "That change was not saved. Check the fields and try again.",
 }
 
@@ -111,7 +119,7 @@ func (s *Server) settingsCreateUser(w http.ResponseWriter, r *http.Request) {
 	}})
 	if err != nil {
 		s.Log.Info("create user", "err", err)
-		s.settingsErr(w, r, dest, "invalid")
+		s.settingsErr(w, r, dest, createUserError(err))
 		return
 	}
 	s.settingsOK(w, r, dest, "user")
@@ -136,7 +144,11 @@ func (s *Server) settingsPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Users.SetPassword(r.Context(), id, password); err != nil {
-		s.settingsErr(w, r, dest, "invalid")
+		code := "invalid"
+		if errors.Is(err, auth.ErrPassword) {
+			code = "pwlen"
+		}
+		s.settingsErr(w, r, dest, code)
 		return
 	}
 	if err := s.Users.RevokeSessions(r.Context(), id); err != nil {
@@ -386,6 +398,28 @@ func (s *Server) parseForm(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	return true
+}
+
+func createUserError(err error) string {
+	switch {
+	case errors.Is(err, auth.ErrPassword):
+		return "pwlen"
+	case errors.Is(err, relpath.ErrEscape), errors.Is(err, relpath.ErrInvalid):
+		return "path"
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "invalid username"):
+		return "username"
+	case strings.Contains(msg, "already exists"):
+		return "exists"
+	case strings.Contains(msg, "scope needs a permission"):
+		return "perm"
+	case strings.Contains(msg, "invalid mount"):
+		return "mount"
+	default:
+		return "invalid"
+	}
 }
 
 func (s *Server) settingsOK(w http.ResponseWriter, r *http.Request, dest, code string) {

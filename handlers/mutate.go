@@ -24,11 +24,11 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	mount, _, resolved, ok := s.permit(w, r, user, auth.PermWrite)
+	mount, rel, resolved, ok := s.permit(w, r, user, auth.PermWrite)
 	if !ok {
 		return
 	}
-	back := browseURL(mount.ID(), resolved)
+	back := browseURL(mount.ID(), rel)
 	cookie, err := r.Cookie(s.csrfName())
 	if err != nil || len(cookie.Value) < 32 {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
@@ -74,7 +74,9 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			name, ok := uploadName(part.FileName())
-			if !ok || !user.Allows(mount.ID(), joinUpload(resolved, name), auth.PermWrite) {
+			target := joinUpload(rel, name)
+			canon, canonErr := mount.Canonical(target)
+			if !ok || canonErr != nil || !allowsCanonical(mount, user, mount.ID(), target, canon, auth.PermWrite) {
 				part.Close()
 				http.Redirect(w, r, back+"?err=name", http.StatusSeeOther)
 				return
@@ -110,27 +112,23 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	mount, _, resolved, ok := s.permit(w, r, user, auth.PermDelete)
+	mount, rel, resolved, ok := s.permit(w, r, user, auth.PermDelete)
 	if !ok {
 		return
 	}
-	back := browseURL(mount.ID(), resolved)
+	back := browseURL(mount.ID(), rel)
 	if !s.csrfOK(r) {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
 		return
 	}
 	name, ok := uploadName(r.PostForm.Get("file"))
-	rel := joinUpload(resolved, name)
-	if !ok || !user.Allows(mount.ID(), rel, auth.PermDelete) {
+	typed := joinUpload(rel, name)
+	canon, err := mount.Canonical(typed)
+	if !ok || err != nil || !allowsCanonical(mount, user, mount.ID(), typed, canon, auth.PermDelete) || canon != joinUpload(resolved, name) {
 		http.NotFound(w, r)
 		return
 	}
-	canon, err := mount.Canonical(rel)
-	if err != nil || canon != rel {
-		http.NotFound(w, r)
-		return
-	}
-	if err := mount.RemoveFile(rel); err != nil {
+	if err := mount.RemoveFile(canon); err != nil {
 		if errors.Is(err, storage.ErrNotFile) {
 			http.Redirect(w, r, back+"?err=file", http.StatusSeeOther)
 			return

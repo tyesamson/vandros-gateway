@@ -21,7 +21,7 @@
     </form>
   </nav>
 </header>
-{{if .Crumbs}}
+{{if and .Crumbs .IsAdmin}}
 <nav class="crumbs" aria-label="Path">
   {{range $i, $c := .Crumbs}}
     {{if $i}}<span class="sep">/</span>{{end}}
@@ -79,7 +79,7 @@
     {{template "header" .}}
     <main>
       <header class="ledger">
-        <h1>{{.Title}}</h1>
+        {{if .IsAdmin}}<h1>{{.Title}}</h1>{{else}}<h1 class="path">{{range $i, $c := .Crumbs}}{{if gt $i 0}}/{{end}}{{if and (eq $i 0) (eq $c.Name "/")}}{{if eq $c.Href $.BrowseURL}}/{{else}}<a href="{{$c.Href}}">/</a>{{end}}{{else}}{{if eq $c.Href $.BrowseURL}}{{$c.Name}}{{else}}<a href="{{$c.Href}}">{{$c.Name}}</a>{{end}}{{end}}{{end}}</h1>{{end}}
         <div class="ledger-side">
           <form method="get" action="{{.BrowseURL}}">
             <input type="hidden" name="hidden" value="hide">

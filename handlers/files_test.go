@@ -162,7 +162,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 	page, _ := io.ReadAll(listResp.Body)
 	listResp.Body.Close()
 	body := string(page)
-	if listResp.StatusCode != http.StatusOK || !strings.Contains(body, "my reel.mov") || !strings.Contains(body, "Show hidden files") || !strings.Contains(body, "<h1>/</h1>") || strings.Contains(body, "Deliverables") || strings.Contains(body, "/b/") || strings.Contains(body, ".DS_Store") || strings.Contains(body, ".Spotlight-V100") || strings.Contains(body, "secret.txt") || strings.Contains(body, "via") || strings.Contains(body, "Upload") || strings.Contains(body, "Delete") {
+	if listResp.StatusCode != http.StatusOK || !strings.Contains(body, "my reel.mov") || !strings.Contains(body, "Show hidden files") || !strings.Contains(body, `<h1 class="path">/</h1>`) || strings.Contains(body, "Deliverables") || strings.Contains(body, "/b/") || strings.Contains(body, `class="crumbs"`) || strings.Contains(body, ".DS_Store") || strings.Contains(body, ".Spotlight-V100") || strings.Contains(body, "secret.txt") || strings.Contains(body, "via") || strings.Contains(body, "Upload") || strings.Contains(body, "Delete") {
 		t.Fatalf("listing status=%d body=%s", listResp.StatusCode, page)
 	}
 	if !strings.Contains(body, `href="/my%20reel.mov"`) || !strings.Contains(body, `href="/notes.txt"`) || !strings.Contains(body, `href="/36-00"`) || !strings.Contains(body, `action="/"`) {
@@ -177,7 +177,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 	childPage, _ := io.ReadAll(childResp.Body)
 	childResp.Body.Close()
 	childBody := string(childPage)
-	if childResp.StatusCode != http.StatusOK || !strings.Contains(childBody, "<h1>36-00</h1>") || !strings.Contains(childBody, ">/</a>") || strings.Contains(childBody, "Deliverables") || strings.Contains(childBody, "/b/") {
+	if childResp.StatusCode != http.StatusOK || !strings.Contains(childBody, `<h1 class="path"><a href="/">/</a>/36-00</h1>`) || strings.Contains(childBody, "<h1>36-00</h1>") || strings.Contains(childBody, `class="crumbs"`) || strings.Contains(childBody, "Deliverables") || strings.Contains(childBody, "/b/") {
 		t.Fatalf("child folder status=%d body=%s", childResp.StatusCode, childPage)
 	}
 	oldReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables", nil)

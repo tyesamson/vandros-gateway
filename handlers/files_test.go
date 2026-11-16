@@ -44,6 +44,9 @@ func TestPortalAccessAndRange(t *testing.T) {
 	if err := os.Symlink("../../secret.txt", filepath.Join(job, "via")); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Mkdir(filepath.Join(job, "36-00"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := config.Parse([]byte("listen: \":24731\"\ndatabase:\n  path: " + filepath.Join(t.TempDir(), "unused.db") + "\nmounts:\n  - id: library\n    name: Library\n    path: " + root + "\n"))
 	if err != nil {
@@ -130,7 +133,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("client parent listing = %d", parentResp.StatusCode)
 	}
 
-	fileURL := srv.URL + "/d/library/client/Deliverables/my%20reel.mov"
+	fileURL := srv.URL + "/my%20reel.mov"
 	rangeReq, _ := http.NewRequest(http.MethodGet, fileURL, nil)
 	rangeReq.Header.Set("Range", "bytes=0-3")
 	rangeReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
@@ -150,7 +153,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("disposition = %s", rangeResp.Header.Get("Content-Disposition"))
 	}
 
-	listReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables", nil)
+	listReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/", nil)
 	listReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	listResp, err := httpClient.Do(listReq)
 	if err != nil {
@@ -158,8 +161,34 @@ func TestPortalAccessAndRange(t *testing.T) {
 	}
 	page, _ := io.ReadAll(listResp.Body)
 	listResp.Body.Close()
-	if listResp.StatusCode != http.StatusOK || !strings.Contains(string(page), "my reel.mov") || !strings.Contains(string(page), "Show hidden files") || strings.Contains(string(page), ".DS_Store") || strings.Contains(string(page), ".Spotlight-V100") || strings.Contains(string(page), "secret.txt") || strings.Contains(string(page), "via") || strings.Contains(string(page), "Upload") || strings.Contains(string(page), "Delete") {
+	body := string(page)
+	if listResp.StatusCode != http.StatusOK || !strings.Contains(body, "my reel.mov") || !strings.Contains(body, "Show hidden files") || !strings.Contains(body, "<h1>Files</h1>") || strings.Contains(body, "Deliverables") || strings.Contains(body, "/b/") || strings.Contains(body, ".DS_Store") || strings.Contains(body, ".Spotlight-V100") || strings.Contains(body, "secret.txt") || strings.Contains(body, "via") || strings.Contains(body, "Upload") || strings.Contains(body, "Delete") {
 		t.Fatalf("listing status=%d body=%s", listResp.StatusCode, page)
+	}
+	if !strings.Contains(body, `href="/my%20reel.mov"`) || !strings.Contains(body, `href="/notes.txt"`) || !strings.Contains(body, `href="/36-00"`) || !strings.Contains(body, `action="/"`) {
+		t.Fatalf("client links leaked the scope: %s", page)
+	}
+	childReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/36-00", nil)
+	childReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	childResp, err := httpClient.Do(childReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	childPage, _ := io.ReadAll(childResp.Body)
+	childResp.Body.Close()
+	childBody := string(childPage)
+	if childResp.StatusCode != http.StatusOK || !strings.Contains(childBody, "<h1>36-00</h1>") || !strings.Contains(childBody, ">Files</a>") || strings.Contains(childBody, "Deliverables") || strings.Contains(childBody, "/b/") {
+		t.Fatalf("child folder status=%d body=%s", childResp.StatusCode, childPage)
+	}
+	oldReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables", nil)
+	oldReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	oldResp, err := httpClient.Do(oldReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldResp.Body.Close()
+	if oldResp.StatusCode != http.StatusSeeOther || oldResp.Header.Get("Location") != "/" {
+		t.Fatalf("old client url = %d %s", oldResp.StatusCode, oldResp.Header.Get("Location"))
 	}
 	csrf := csrfFrom(t, listResp, string(page))
 	zipBody := postZip(t, httpClient, srv.URL+"/z/library/client/Deliverables", token, csrf, url.Values{
@@ -185,7 +214,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 	if _, hidden := allNames[".DS_Store"]; hidden || allNames["my reel.mov"] != string(payload) || allNames["notes.txt"] != "hello notes" || len(allNames) != 2 {
 		t.Fatalf("download all = %#v", allNames)
 	}
-	showReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables?hidden=show", nil)
+	showReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/?hidden=show", nil)
 	showReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	showResp, err := (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(showReq)
 	if err != nil {
@@ -195,7 +224,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 	if showResp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("show hidden redirect = %d", showResp.StatusCode)
 	}
-	shown, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/client/Deliverables", nil)
+	shown, _ := http.NewRequest(http.MethodGet, srv.URL+"/", nil)
 	shown.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	shown.AddCookie(&http.Cookie{Name: "vandros_hidden", Value: "show"})
 	shownResp, err := httpClient.Do(shown)
@@ -208,7 +237,7 @@ func TestPortalAccessAndRange(t *testing.T) {
 		t.Fatalf("show hidden status=%d body=%s", shownResp.StatusCode, showPage)
 	}
 
-	viaReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/d/library/client/Deliverables/via", nil)
+	viaReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/via", nil)
 	viaReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	viaResp, err := httpClient.Do(viaReq)
 	if err != nil {
@@ -338,8 +367,9 @@ func TestUploadAndDelete(t *testing.T) {
 		return http.ErrUseLastResponse
 	}
 	folder := srv.URL + "/b/library/client/inbox"
+	home := srv.URL + "/"
 	adminCSRF := csrfFor(t, httpClient, folder, adminToken)
-	writerCSRF := csrfFor(t, httpClient, folder, writerToken)
+	writerCSRF := csrfFor(t, httpClient, home, writerToken)
 
 	if status := uploadStatus(t, httpClient, srv.URL+"/u/library/client/inbox", readerToken, adminCSRF, "drop.txt", "hello", true); status != http.StatusNotFound {
 		t.Fatalf("reader upload = %d", status)
@@ -384,19 +414,19 @@ func TestUploadAndDelete(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(job, "drop.txt")); err != nil {
 		t.Fatal(err)
 	}
-	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, folder, removerToken), "folder"); status != http.StatusSeeOther {
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, home, removerToken), "folder"); status != http.StatusSeeOther {
 		t.Fatalf("directory delete = %d", status)
 	}
 	if _, err := os.Stat(filepath.Join(job, "folder")); err != nil {
 		t.Fatalf("directory removed: %v", err)
 	}
-	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, folder, removerToken), "link"); status != http.StatusNotFound {
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, home, removerToken), "link"); status != http.StatusNotFound {
 		t.Fatalf("symlink delete = %d", status)
 	}
 	if _, err := os.Lstat(filepath.Join(job, "link")); err != nil {
 		t.Fatalf("symlink removed: %v", err)
 	}
-	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, folder, removerToken), "drop.txt"); status != http.StatusSeeOther {
+	if status := deleteStatus(t, httpClient, srv.URL+"/rm/library/client/inbox", removerToken, csrfFor(t, httpClient, home, removerToken), "drop.txt"); status != http.StatusSeeOther {
 		t.Fatalf("remover delete = %d", status)
 	}
 	if _, err := os.Stat(filepath.Join(job, "drop.txt")); !os.IsNotExist(err) {
@@ -579,7 +609,7 @@ func TestClientCanOpenScopeThroughSymlink(t *testing.T) {
 	}
 	srv := httptest.NewServer((&Server{Brand: "The Finish", SessionTTL: time.Hour, Portal: portal, Users: users}).Handler())
 	t.Cleanup(srv.Close)
-	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/alias/inbox", nil)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/", nil)
 	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	resp, err := srv.Client().Do(req)
 	if err != nil {
@@ -587,7 +617,7 @@ func TestClientCanOpenScopeThroughSymlink(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "reel.mov") {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "reel.mov") || strings.Contains(string(body), "alias") || strings.Contains(string(body), "inbox") {
 		t.Fatalf("scoped symlink status=%d body=%s", resp.StatusCode, body)
 	}
 
@@ -601,7 +631,7 @@ func TestClientCanOpenScopeThroughSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	miss, _ := http.NewRequest(http.MethodGet, srv.URL+"/b/library/no/such", nil)
+	miss, _ := http.NewRequest(http.MethodGet, srv.URL+"/", nil)
 	miss.AddCookie(&http.Cookie{Name: auth.CookieName, Value: missingToken})
 	missResp, err := srv.Client().Do(miss)
 	if err != nil {

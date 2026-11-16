@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +26,23 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if user.Role != auth.RoleAdmin {
+		scopes := s.clientScopes(user)
+		if len(scopes) == 1 {
+			s.browse(w, r.WithContext(withLocated(r.Context(), scopes[0].mount, scopes[0].path)))
+			return
+		}
+		links := make([]mountLink, 0, len(scopes))
+		for _, scope := range scopes {
+			name := "Files"
+			if scope.key != "" {
+				name = scope.key
+			}
+			links = append(links, mountLink{Name: name, Href: joinPublic(scope.key, "")})
+		}
+		s.render(w, r, http.StatusOK, "mounts", page{Username: user.Username, Mounts: links})
+		return
+	}
 	links := s.entryPoints(user)
 	if len(links) == 1 {
 		http.Redirect(w, r, links[0].Href, http.StatusSeeOther)
@@ -43,7 +61,15 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if resolved != rel && user.Allows(mount.ID(), resolved, auth.PermRead) {
+	if user.Role != auth.RoleAdmin {
+		if dest, ok := s.publicURL(user, mount.ID(), rel); ok && r.URL.Path != dest {
+			if r.URL.RawQuery != "" {
+				dest += "?" + r.URL.RawQuery
+			}
+			http.Redirect(w, r, dest, http.StatusSeeOther)
+			return
+		}
+	} else if resolved != rel && user.Allows(mount.ID(), resolved, auth.PermRead) {
 		http.Redirect(w, r, browseURL(mount.ID(), resolved), http.StatusTemporaryRedirect)
 		return
 	}
@@ -63,7 +89,6 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 		entries = nil
 		missing = true
 	}
-	prefix, _ := readPrefix(user, mount.ID(), rel)
 	rows := make([]row, 0, len(entries))
 	hasFiles := false
 	for _, ent := range entries {
@@ -82,19 +107,19 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if ent.IsDir {
-				item.Href = browseURL(mount.ID(), target)
+				item.Href = s.pageURL(user, mount.ID(), ent.Rel, false)
 				item.Class = "dir"
 			} else if !ent.Broken {
-				item.Href = downloadURL(mount.ID(), target)
+				item.Href = s.pageURL(user, mount.ID(), ent.Rel, true)
 				item.Download = item.Href
 				item.Size = humanSize(ent.Size)
 				hasFiles = true
 			}
 		case ent.IsDir:
-			item.Href = browseURL(mount.ID(), ent.Rel)
+			item.Href = s.pageURL(user, mount.ID(), ent.Rel, false)
 			item.Class = "dir"
 		default:
-			item.Href = downloadURL(mount.ID(), ent.Rel)
+			item.Href = s.pageURL(user, mount.ID(), ent.Rel, true)
 			item.Download = item.Href
 			item.Size = humanSize(ent.Size)
 			item.CanDelete = user.Allows(mount.ID(), ent.Rel, auth.PermDelete)
@@ -102,20 +127,21 @@ func (s *Server) browse(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, item)
 	}
-	crumbs := folderCrumbs(mount, rel, prefix)
+	here := s.pageURL(user, mount.ID(), rel, false)
+	crumbs := s.pageCrumbs(user, mount, rel)
 	title := mount.Name()
 	if n := len(crumbs); n > 0 {
 		title = crumbs[n-1].Name
 	}
 	data := page{
-		Username:  user.Username,
-		Title:     title,
-		Crumbs:    crumbs,
-		Rows:      rows,
-		ZipURL:     zipURL(mount.ID(), rel),
-		UploadURL:  uploadURL(mount.ID(), rel),
-		DeleteURL:  deleteURL(mount.ID(), rel),
-		BrowseURL:  browseURL(mount.ID(), rel),
+		Username:   user.Username,
+		Title:      title,
+		Crumbs:     crumbs,
+		Rows:       rows,
+		ZipURL:     s.actionURL(user, mount.ID(), rel, "z"),
+		UploadURL:  s.actionURL(user, mount.ID(), rel, "u"),
+		DeleteURL:  s.actionURL(user, mount.ID(), rel, "rm"),
+		BrowseURL:  here,
 		CanWrite:   user.Allows(mount.ID(), resolved, auth.PermWrite),
 		HasFiles:   hasFiles,
 		ShowHidden: showHidden,
@@ -156,9 +182,15 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	mount, _, resolved, ok := s.permit(w, r, user, auth.PermRead)
+	mount, rel, resolved, ok := s.permit(w, r, user, auth.PermRead)
 	if !ok {
 		return
+	}
+	if user.Role != auth.RoleAdmin {
+		if dest, ok := s.publicURL(user, mount.ID(), rel); ok && r.URL.Path != dest {
+			http.Redirect(w, r, dest, http.StatusSeeOther)
+			return
+		}
 	}
 	if resolved == "" {
 		http.NotFound(w, r)
@@ -186,7 +218,7 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	back := browseURL(mount.ID(), rel)
+	back := s.returnURL(user, mount.ID(), rel)
 	if !s.csrfOK(r) {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
 		return
@@ -217,6 +249,14 @@ func (s *Server) downloadZip(w http.ResponseWriter, r *http.Request) {
 	name := path.Base(rel)
 	if name == "." || name == "/" || name == "" {
 		name = mount.Name()
+	}
+	if user.Role != auth.RoleAdmin {
+		if _, inside, ok := s.matchClientScope(user, mount.ID(), rel); ok {
+			name = "files"
+			if inside != "" {
+				name = path.Base(inside)
+			}
+		}
 	}
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", storage.ContentDisposition(name+".zip"))
@@ -360,12 +400,16 @@ func writeZipEntry(zw *zip.Writer, mount storage.Mount, item zipFile) error {
 
 func (s *Server) permit(w http.ResponseWriter, r *http.Request, user auth.User, perm auth.Perm) (storage.Mount, string, string, bool) {
 	id := r.PathValue("mount")
+	raw := r.PathValue("path")
+	if located, ok := locatedFrom(r.Context()); ok {
+		id, raw = located.mount, located.rel
+	}
 	mount, ok := s.Portal.Get(id)
 	if !ok {
 		http.NotFound(w, r)
 		return storage.Mount{}, "", "", false
 	}
-	rel, err := relpath.Clean(r.PathValue("path"))
+	rel, err := relpath.Clean(raw)
 	if err != nil || !user.Allows(id, rel, perm) {
 		http.NotFound(w, r)
 		return storage.Mount{}, "", "", false
@@ -443,6 +487,281 @@ func (s *Server) entryPoints(user auth.User) []mountLink {
 		links = append(links, link)
 	}
 	return links
+}
+
+type locatedPath struct {
+	mount string
+	rel   string
+}
+
+type locatedKey struct{}
+
+func withLocated(ctx context.Context, mount, rel string) context.Context {
+	return context.WithValue(ctx, locatedKey{}, locatedPath{mount: mount, rel: rel})
+}
+
+func locatedFrom(ctx context.Context) (locatedPath, bool) {
+	v, ok := ctx.Value(locatedKey{}).(locatedPath)
+	return v, ok
+}
+
+type scopeRef struct {
+	mount string
+	path  string
+	key   string
+}
+
+// clientScopes is the client's view of each Read grant.
+// One grant is the whole site, so its address is / and its name is Files.
+// The grant's own folder name is never shown.
+func (s *Server) clientScopes(user auth.User) []scopeRef {
+	if user.Role == auth.RoleAdmin {
+		return nil
+	}
+	var out []scopeRef
+	counts := map[string]int{}
+	for _, scope := range user.Scopes {
+		if !scope.Read {
+			continue
+		}
+		if _, ok := s.Portal.Get(scope.MountID); !ok {
+			continue
+		}
+		cleaned, err := relpath.Clean(scope.Path)
+		if err != nil {
+			continue
+		}
+		base := "files"
+		if cleaned != "" {
+			base = path.Base(cleaned)
+		}
+		counts[base]++
+		key := base
+		if counts[base] > 1 {
+			key = fmt.Sprintf("%s-%d", base, counts[base])
+		}
+		out = append(out, scopeRef{mount: scope.MountID, path: cleaned, key: key})
+	}
+	if len(out) == 1 {
+		out[0].key = ""
+	}
+	return out
+}
+
+func (s *Server) matchClientScope(user auth.User, mountID, full string) (scopeRef, string, bool) {
+	full, err := relpath.Clean(full)
+	if err != nil {
+		return scopeRef{}, "", false
+	}
+	var best scopeRef
+	bestLen := -1
+	inside := ""
+	found := false
+	for _, sc := range s.clientScopes(user) {
+		if sc.mount != mountID || !relpath.Within(sc.path, full) || len(sc.path) <= bestLen {
+			continue
+		}
+		rel := full
+		if sc.path != "" {
+			rel = ""
+			if full != sc.path {
+				rel = strings.TrimPrefix(full, sc.path+"/")
+			}
+		}
+		best = sc
+		bestLen = len(sc.path)
+		inside = rel
+		found = true
+	}
+	return best, inside, found
+}
+
+func (s *Server) publicURL(user auth.User, mountID, full string) (string, bool) {
+	sc, inside, ok := s.matchClientScope(user, mountID, full)
+	if !ok {
+		return "", false
+	}
+	return joinPublic(sc.key, inside), true
+}
+
+func (s *Server) fromClientPath(user auth.User, public string) (string, string, bool) {
+	scopes := s.clientScopes(user)
+	if len(scopes) == 0 {
+		return "", "", false
+	}
+	public, err := relpath.Clean(public)
+	if err != nil {
+		return "", "", false
+	}
+	if len(scopes) == 1 {
+		return scopes[0].mount, joinScope(scopes[0].path, public), true
+	}
+	if public == "" {
+		return "", "", false
+	}
+	seg, rest, _ := strings.Cut(public, "/")
+	for _, sc := range scopes {
+		if sc.key == seg {
+			return sc.mount, joinScope(sc.path, rest), true
+		}
+	}
+	return "", "", false
+}
+
+func (s *Server) clientGet(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.CurrentUser(r.Context())
+	if !ok || user.Role == auth.RoleAdmin {
+		http.NotFound(w, r)
+		return
+	}
+	mountID, rel, ok := s.fromClientPath(user, r.PathValue("path"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	r = r.WithContext(withLocated(r.Context(), mountID, rel))
+	mount, _, resolved, ok := s.permit(w, r, user, auth.PermRead)
+	if !ok {
+		return
+	}
+	f, info, err := mount.OpenFile(resolved)
+	if err == nil {
+		defer f.Close()
+		storage.Serve(w, r, path.Base(resolved), info.ModTime(), f)
+		return
+	}
+	if !errors.Is(err, storage.ErrNotFile) && !hiddenFSError(err) {
+		writeFSError(s.Log, w, r, err)
+		return
+	}
+	s.browse(w, r)
+}
+
+func (s *Server) clientPost(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.CurrentUser(r.Context())
+	if !ok || user.Role == auth.RoleAdmin {
+		http.NotFound(w, r)
+		return
+	}
+	mountID, rel, ok := s.fromClientPath(user, r.PathValue("path"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	r = r.WithContext(withLocated(r.Context(), mountID, rel))
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		s.upload(w, r)
+		return
+	}
+	if !s.parseForm(w, r) {
+		return
+	}
+	if r.PostForm.Get("op") == "rm" {
+		s.remove(w, r)
+		return
+	}
+	s.downloadZip(w, r)
+}
+
+func (s *Server) pageURL(user auth.User, mountID, rel string, file bool) string {
+	if user.Role != auth.RoleAdmin {
+		if u, ok := s.publicURL(user, mountID, rel); ok {
+			return u
+		}
+		return ""
+	}
+	if file {
+		return downloadURL(mountID, rel)
+	}
+	return browseURL(mountID, rel)
+}
+
+func (s *Server) actionURL(user auth.User, mountID, rel, kind string) string {
+	if user.Role != auth.RoleAdmin {
+		if u, ok := s.publicURL(user, mountID, rel); ok {
+			return u
+		}
+		return "/"
+	}
+	switch kind {
+	case "z":
+		return zipURL(mountID, rel)
+	case "u":
+		return uploadURL(mountID, rel)
+	case "rm":
+		return deleteURL(mountID, rel)
+	default:
+		return browseURL(mountID, rel)
+	}
+}
+
+func (s *Server) returnURL(user auth.User, mountID, rel string) string {
+	if user.Role != auth.RoleAdmin {
+		if u, ok := s.publicURL(user, mountID, rel); ok {
+			return u
+		}
+		return "/"
+	}
+	return browseURL(mountID, rel)
+}
+
+func (s *Server) pageCrumbs(user auth.User, mount storage.Mount, rel string) []crumb {
+	if user.Role == auth.RoleAdmin {
+		prefix, _ := readPrefix(user, mount.ID(), rel)
+		return folderCrumbs(mount, rel, prefix)
+	}
+	sc, inside, ok := s.matchClientScope(user, mount.ID(), rel)
+	label := "Files"
+	href := "/"
+	if ok {
+		href = joinPublic(sc.key, "")
+		if sc.key != "" {
+			label = sc.key
+		}
+	}
+	out := []crumb{{Name: label, Href: href}}
+	acc := ""
+	for _, seg := range strings.Split(inside, "/") {
+		if seg == "" {
+			continue
+		}
+		if acc == "" {
+			acc = seg
+		} else {
+			acc += "/" + seg
+		}
+		out = append(out, crumb{Name: seg, Href: joinPublic(sc.key, acc)})
+	}
+	return out
+}
+
+func joinScope(scope, rest string) string {
+	if rest == "" {
+		return scope
+	}
+	if scope == "" {
+		return rest
+	}
+	return scope + "/" + rest
+}
+
+func joinPublic(key, rel string) string {
+	var parts []string
+	if key != "" {
+		parts = append(parts, key)
+	}
+	if rel != "" {
+		parts = append(parts, strings.Split(rel, "/")...)
+	}
+	if len(parts) == 0 {
+		return "/"
+	}
+	var b strings.Builder
+	for _, part := range parts {
+		b.WriteByte('/')
+		b.WriteString(url.PathEscape(part))
+	}
+	return b.String()
 }
 
 func readPrefix(user auth.User, mountID, rel string) (string, bool) {

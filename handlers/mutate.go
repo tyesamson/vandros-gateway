@@ -28,7 +28,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	back := browseURL(mount.ID(), rel)
+	back := s.returnURL(user, mount.ID(), rel)
 	cookie, err := r.Cookie(s.csrfName())
 	if err != nil || len(cookie.Value) < 32 {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
@@ -116,7 +116,7 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	back := browseURL(mount.ID(), rel)
+	back := s.returnURL(user, mount.ID(), rel)
 	if !s.csrfOK(r) {
 		http.Redirect(w, r, back+"?err=csrf", http.StatusSeeOther)
 		return

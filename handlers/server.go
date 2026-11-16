@@ -79,6 +79,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /u/{mount}/{path...}", s.require(s.upload))
 	mux.HandleFunc("POST /rm/{mount}", s.require(s.remove))
 	mux.HandleFunc("POST /rm/{mount}/{path...}", s.require(s.remove))
+	mux.HandleFunc("GET /{path...}", s.require(s.clientGet))
+	mux.HandleFunc("POST /{$}", s.require(s.clientPost))
+	mux.HandleFunc("POST /{path...}", s.require(s.clientPost))
 	return security(mux, s.SecureCookie)
 }
 

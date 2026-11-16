@@ -95,10 +95,12 @@
         <label class="check"><input type="checkbox" data-select-all> Select all</label>
         <form id="download-selected" method="post" action="{{.ZipURL}}">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="op" value="zip">
           <button type="submit">Download selected</button>
         </form>
         <form method="post" action="{{.ZipURL}}">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="op" value="zip">
           <input type="hidden" name="all" value="1">
           <button class="ghost" type="submit">Download all</button>
         </form>
@@ -114,7 +116,7 @@
           <span class="when">{{.Modified}}</span>
           <span class="row-actions">
             {{if .Download}}<a class="icon" href="{{.Download}}" aria-label="Download"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></svg></a>{{end}}
-            {{if .CanDelete}}<form method="post" action="{{$.DeleteURL}}" onsubmit="return confirm('Delete this file?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="file" value="{{.Name}}"><button class="icon" type="submit" aria-label="Delete"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M8 7l1 12h6l1-12"/></svg></button></form>{{end}}
+            {{if .CanDelete}}<form method="post" action="{{$.DeleteURL}}" onsubmit="return confirm('Delete this file?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="op" value="rm"><input type="hidden" name="file" value="{{.Name}}"><button class="icon" type="submit" aria-label="Delete"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M8 7l1 12h6l1-12"/></svg></button></form>{{end}}
           </span>
         </li>
         {{end}}

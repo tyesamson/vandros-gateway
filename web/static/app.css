@@ -543,7 +543,7 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost):not(.icon):hover {
 }
 
 a.hop:hover,
-.hop.file:has(a.dir):hover {
+.hop.file:hover {
   text-decoration: none;
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));

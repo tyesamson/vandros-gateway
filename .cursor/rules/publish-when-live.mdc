@@ -1,0 +1,12 @@
+---
+description: Commit and push once Vandros Gateway is running in production
+alwaysApply: true
+---
+
+# When to publish
+
+While the app is only running on this machine for local development, leave changes uncommitted until Alastair asks.
+
+Once the Docker container is installed on the live machine, a change he needs to run must be committed and pushed to `main`. Pushing is what builds `ghcr.io/tyesamson/vandros-gateway:latest`. He then removes the old container and runs his script, which uses `--pull always`.
+
+Do not commit `config.yaml`, secrets, or private mount names. Do not force-push unless he asks after being warned.

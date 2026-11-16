@@ -512,7 +512,7 @@ type scopeRef struct {
 }
 
 // clientScopes is the client's view of each Read grant.
-// One grant is the whole site, so its address and its label are /.
+// One grant is the whole site, so its address is /. The path labels that root with the username.
 // The grant's own folder name is never shown.
 func (s *Server) clientScopes(user auth.User) []scopeRef {
 	if user.Role == auth.RoleAdmin {
@@ -711,13 +711,10 @@ func (s *Server) pageCrumbs(user auth.User, mount storage.Mount, rel string) []c
 		return folderCrumbs(mount, rel, prefix)
 	}
 	sc, inside, ok := s.matchClientScope(user, mount.ID(), rel)
-	label := "/"
+	label := user.Username
 	href := "/"
 	if ok {
 		href = joinPublic(sc.key, "")
-		if sc.key != "" {
-			label = sc.key
-		}
 	}
 	out := []crumb{{Name: label, Href: href}}
 	acc := ""

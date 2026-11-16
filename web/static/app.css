@@ -473,6 +473,9 @@ button[type="submit"]:not(.danger):not(.text):not(.ghost):not(.icon):hover {
 }
 
 .ledger h1 { margin: 0; }
+.ledger h1.path { font-weight: 400; }
+.ledger h1.path a:hover { color: var(--accent); text-decoration: none; }
+.ledger h1.path .here { font-weight: 700; }
 .ledger-side {
   display: flex;
   align-items: center;

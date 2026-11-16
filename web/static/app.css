@@ -553,13 +553,16 @@ a.hop:hover,
   grid-template-columns: auto minmax(0, 1fr) 6.5rem 11rem auto;
 }
 
-.row-actions {
+.hop .row-actions {
   display: flex;
+  flex-wrap: nowrap;
   gap: 2px;
   justify-content: flex-end;
   align-items: center;
+  align-self: center;
+  margin-top: 0;
 }
-.row-actions form { margin: 0; }
+.hop .row-actions form { display: flex; gap: 2px; align-items: center; margin: 0; }
 
 .pick { margin: 0; }
 .pick input { accent-color: var(--accent); }

@@ -34,7 +34,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		}
 		links := make([]mountLink, 0, len(scopes))
 		for _, scope := range scopes {
-			name := "Files"
+			name := "/"
 			if scope.key != "" {
 				name = scope.key
 			}
@@ -512,7 +512,7 @@ type scopeRef struct {
 }
 
 // clientScopes is the client's view of each Read grant.
-// One grant is the whole site, so its address is / and its name is Files.
+// One grant is the whole site, so its address and its label are /.
 // The grant's own folder name is never shown.
 func (s *Server) clientScopes(user auth.User) []scopeRef {
 	if user.Role == auth.RoleAdmin {
@@ -711,7 +711,7 @@ func (s *Server) pageCrumbs(user auth.User, mount storage.Mount, rel string) []c
 		return folderCrumbs(mount, rel, prefix)
 	}
 	sc, inside, ok := s.matchClientScope(user, mount.ID(), rel)
-	label := "Files"
+	label := "/"
 	href := "/"
 	if ok {
 		href = joinPublic(sc.key, "")
